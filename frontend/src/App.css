@@ -1,34 +1,13 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Keep minimal custom styles; rely on Tailwind + shadcn */
+/* Remove legacy centering that breaks natural reading flow */
+
+img { max-width: 100%; height: auto; display: block; }
+
+/* Subtle animations for interactive feel */
+button, [role="button"], .btn {
+  transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
-}
-
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
-}
-
-.App-link {
-    color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
-}
+/**** Accessibility helpers ****/
+:focus { outline: none; }
+:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
