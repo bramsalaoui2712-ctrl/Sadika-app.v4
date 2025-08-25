@@ -101,3 +101,61 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+## user_problem_statement: "Je veux une application pour pouvoir parler a mon IA , sur mon téléphone, je veux qu'elle soit intuitive style chatgptt"
+
+## backend:
+  - task: "SSE chat streaming endpoint (/api/chat/stream)"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Implemented SSE endpoint with Emergent Integrations (LlmChat). Falls back to server-side mock on provider failure. Needs full test."
+  - task: "Chat history endpoint (/api/chat/history)"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "main"
+        comment: "Returns messages for a given sessionId after chat."
+
+## frontend:
+  - task: "Mock-only chat UI with mic+TTS"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Chat.jsx"
+    stuck_count: 1
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "UI created with streaming mock; tested visually. Integration to backend pending."
+
+## metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+## test_plan:
+  current_focus:
+    - "SSE chat streaming endpoint (/api/chat/stream)"
+    - "Chat history endpoint (/api/chat/history)"
+  stuck_tasks:
+    - 
+  test_all: false
+  test_priority: "high_first"
+
+## agent_communication:
+  - agent: "main"
+    message: "Please test backend SSE streaming and history. The SSE stream should emit a 'session' event first, then multiple 'content' chunks, and 'complete'. Use session_id to call /api/chat/history. Note: real LLM may fallback to mock if upstream unavailable; this is expected."
