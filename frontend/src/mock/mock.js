@@ -32,7 +32,7 @@ export async function simulateAIResponse(userText, onToken = () => {}) {
   ];
   // Create a lightweight reply based on user input
   const reply =
-    (userText || "").trim().length &lt; 4
+    (userText || "").trim().length < 4
       ? "Je t'écoute. Donne-moi un peu plus de contexte."
       : `${baseReplies[Math.floor(Math.random() * baseReplies.length)]} ${
           userText.length &gt; 140
