@@ -111,7 +111,7 @@
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
@@ -119,13 +119,16 @@
       - working: true
         agent: "main"
         comment: "Provider normalization added (openai/gpt-4o-mini default). Dropped unsupported params for O-series. Expect real content streaming."
+      - working: true
+        agent: "testing"
+        comment: "✅ KERNEL INTEGRATION TESTED: GET /api/chat/stream with provider=kernel&model=local&q=Bonjour&sessionId=test123&mode=public&council=2&truth=1 returns proper SSE sequence (session->content->complete). Kernel traits verified: French text handling, local processing. Regression test passed: OpenAI provider still works with gpt-4o-mini."
   - task: "Chat history endpoint (/api/chat/history)"
     implemented: true
     working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "main"
@@ -133,6 +136,42 @@
       - working: true
         agent: "main"
         comment: "Verified persistence logic; needs automated test to confirm."
+      - working: true
+        agent: "testing"
+        comment: "✅ PERSISTENCE VERIFIED: GET /api/chat/history?sessionId=test123 returns 2 messages (user+assistant) after kernel chat stream. History properly persisted in MongoDB."
+  - task: "Kernel memory management (/api/kernel/memory)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ KERNEL MEMORY TESTED: GET /api/kernel/memory returns {ok:true, memory:{...}}. POST /api/kernel/memory/approve with {key:'contrainte', value:'local-first; concision'} successfully sets memory and verification confirms key is stored."
+  - task: "Kernel feedback endpoint (/api/kernel/feedback)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ FEEDBACK TESTED: POST /api/kernel/feedback with {label:'approve'} returns {ok:true}. Endpoint properly validates label and processes feedback."
+  - task: "Kernel mutation endpoint (/api/kernel/mutate)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ MUTATION TESTED: POST /api/kernel/mutate with {trials:3} returns {ok:true, result:{ok:true, baseline:2.45, adopted:false, new_score:2.45}}. Mutation logic working with proper result structure including adopted boolean."
 
 ## frontend:
   - task: "Mock-only chat UI with mic+TTS"
