@@ -195,7 +195,7 @@ export default function Chat() {
             </div>
           </Card>
 
-          <ScrollArea className="h-[58vh] rounded-md border" viewportRef={scrollRef}>
+          <ScrollArea className="h-[58vh] rounded-md border" >
             <div className="p-3 space-y-4">
               {messages.map((m) => (
                 <div key={m.id} data-mid={m.id}>
