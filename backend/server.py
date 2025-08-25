@@ -136,8 +136,23 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
     try:
         if llm_client:
             # Real LLM streaming via Emergent Integrations
-            # Build a new LlmChat per-request to set model/provider
-            chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message="Tu es une IA utile.", initial_messages=messages).with_model(payload.provider or "anthropic", payload.model or "claude-3-sonnet").with_params(temperature=payload.temperature or 0.7, max_tokens=payload.max_tokens or 1024)
+            # Normalize provider/model for Emergent Universal Key
+            prov = (payload.provider or "openai").lower()
+            modl = (payload.model or "o4-mini")
+            # Map google->gemini for this library
+            if prov == "google":
+                prov = "gemini"
+            # With Universal Key, routing passes through Emergent proxy using OpenAI adapter by default.
+            # Force OpenAI path for non-gemini providers to avoid direct Anthropic/Gemini 401 with universal key.
+            if prov != "gemini":
+                prov = "openai"
+                # ensure an openai model name
+                if not (modl.startswith("gpt-") or modl.startswith("o4") or modl.startswith("gpt4") or modl.startswith("o3") ):
+                    modl = "o4-mini"
+
+            chat = (LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message="Tu es une IA utile.", initial_messages=messages)
+                    .with_model(prov, modl)
+                    .with_params(temperature=payload.temperature or 0.7, max_tokens=payload.max_tokens or 1024))
             # Non-streaming method in this library; emulate streaming by chunking the final text
             final_text = await chat.send_message(UserMessage(text=payload.message))
             for part in final_text.split(" "):
