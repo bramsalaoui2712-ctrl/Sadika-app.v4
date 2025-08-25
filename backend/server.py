@@ -136,26 +136,14 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
     try:
         if llm_client:
             # Real LLM streaming via Emergent Integrations
-            async for chunk in llm_client.stream_chat_completions(
-                messages=messages,
-                provider=payload.provider or "anthropic",
-                model=payload.model or "claude-3-sonnet",
-                temperature=payload.temperature or 0.7,
-                max_tokens=payload.max_tokens or 1024,
-            ):
-                # chunk is already JSON-like; try extracting text fields
-                text = None
-                if isinstance(chunk, dict):
-                    # Common shapes by providers
-                    text = (
-                        chunk.get("choices", [{}])[0].get("delta", {}).get("content")
-                        if "choices" in chunk else chunk.get("delta", {}).get("text")
-                    ) or chunk.get("content") or chunk.get("text")
-                if not text and isinstance(chunk, str):
-                    text = chunk
-                if text:
-                    full += text
-                    yield f"data: {json.dumps({'type': 'content', 'content': text})}\n\n"
+            # Build a new LlmChat per-request to set model/provider
+            chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message="Tu es une IA utile.", initial_messages=messages).with_model(payload.provider or "anthropic", payload.model or "claude-3-sonnet").with_params(temperature=payload.temperature or 0.7, max_tokens=payload.max_tokens or 1024)
+            # Non-streaming method in this library; emulate streaming by chunking the final text
+            final_text = await chat.send_message(UserMessage(text=payload.message))
+            for part in final_text.split(" "):
+                full += part + " "
+                yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
+                await asyncio.sleep(0.01)
         else:
             # Server-side mock stream (deterministic)
             demo = f"Bonjour ! Tu as dit: {payload.message}\n\nJe peux t'aider étape par étape."
