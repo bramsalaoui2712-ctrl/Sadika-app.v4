@@ -152,7 +152,7 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
 
             chat = (LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message="Tu es une IA utile.", initial_messages=messages)
                     .with_model(prov, modl)
-                    .with_params(temperature=payload.temperature or 0.7, max_tokens=payload.max_tokens or 1024))
+                    .with_params(max_tokens=payload.max_tokens or 1024))  # drop temperature for O-series compatibility
             # Non-streaming method in this library; emulate streaming by chunking the final text
             final_text = await chat.send_message(UserMessage(text=payload.message))
             for part in final_text.split(" "):
