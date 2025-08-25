@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,9 +6,13 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional, AsyncGenerator, Dict, Any
 import uuid
 from datetime import datetime
+import json
+
+# LLM integration (Emergent Integrations)
+from emergentintegrations import LLMClient
 
 
 ROOT_DIR = Path(__file__).parent
@@ -19,6 +23,12 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# LLM Client
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
+if not EMERGENT_LLM_KEY:
+    logging.warning("EMERGENT_LLM_KEY missing. /api/chat will run in mock mode.")
+llm_client = LLMClient(api_key=EMERGENT_LLM_KEY) if EMERGENT_LLM_KEY else None
+
 # Create the main app without a prefix
 app = FastAPI()
 
@@ -26,7 +36,7 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 
-# Define Models
+# ======== Existing Demo Models & Routes ========
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
@@ -35,7 +45,6 @@ class StatusCheck(BaseModel):
 class StatusCheckCreate(BaseModel):
     client_name: str
 
-# Add your routes to the router instead of directly to app
 @api_router.get("/")
 async def root():
     return {"message": "Hello World"}
@@ -52,13 +61,136 @@ async def get_status_checks():
     status_checks = await db.status_checks.find().to_list(1000)
     return [StatusCheck(**status_check) for status_check in status_checks]
 
+
+# ======== Chat Models & Helpers ========
+class ChatStreamInput(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    provider: Optional[str] = Field(default="anthropic", description="openai|anthropic|google")
+    model: Optional[str] = Field(default="claude-3-sonnet", description="model name for provider")
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 1024
+
+class ChatHistoryResponse(BaseModel):
+    session_id: str
+    messages: List[Dict[str, Any]]
+
+SESSION_COL = "chat_sessions"
+
+async def ensure_session(session_id: Optional[str]) -> str:
+    """Return a valid session_id; create session doc if new."""
+    sid = session_id or (str(uuid.uuid4()))
+    existing = await db[SESSION_COL].find_one({"session_id": sid})
+    if not existing:
+        await db[SESSION_COL].insert_one({
+            "session_id": sid,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "messages": []
+        })
+    return sid
+
+async def append_message(session_id: str, role: str, content: str, meta: Optional[Dict[str, Any]] = None):
+    await db[SESSION_COL].update_one(
+        {"session_id": session_id},
+        {
+            "$push": {"messages": {"role": role, "content": content, "ts": datetime.utcnow(), "meta": meta or {}}},
+            "$set": {"updated_at": datetime.utcnow()}
+        },
+        upsert=True
+    )
+
+async def get_history(session_id: str) -> List[Dict[str, Any]]:
+    doc = await db[SESSION_COL].find_one({"session_id": session_id})
+    return (doc or {}).get("messages", [])
+
+
+# ======== Chat Endpoints ========
+@api_router.get("/chat/history", response_model=ChatHistoryResponse)
+async def chat_history(sessionId: str):
+    if not sessionId:
+        raise HTTPException(status_code=400, detail="sessionId required")
+    msgs = await get_history(sessionId)
+    return {"session_id": sessionId, "messages": msgs}
+
+
+async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, None]:
+    """SSE generator that streams LLM tokens or a server-side mock if no key."""
+    # 1) Ensure session
+    sid = await ensure_session(payload.session_id)
+    
+    # 2) Persist user message
+    await append_message(sid, "user", payload.message)
+
+    # 3) Send session event first
+    yield f"data: {json.dumps({'type': 'session', 'session_id': sid})}\n\n"
+
+    # 4) Build messages from history for context
+    history = await get_history(sid)
+    messages = [{"role": m["role"], "content": m["content"]} for m in history]
+
+    # 5) Stream from real LLM if key present, else mock
+    full = ""
+    try:
+        if llm_client:
+            # Real LLM streaming via Emergent Integrations
+            async for chunk in llm_client.stream_chat_completions(
+                messages=messages,
+                provider=payload.provider or "anthropic",
+                model=payload.model or "claude-3-sonnet",
+                temperature=payload.temperature or 0.7,
+                max_tokens=payload.max_tokens or 1024,
+            ):
+                # chunk is already JSON-like; try extracting text fields
+                text = None
+                if isinstance(chunk, dict):
+                    # Common shapes by providers
+                    text = (
+                        chunk.get("choices", [{}])[0].get("delta", {}).get("content")
+                        if "choices" in chunk else chunk.get("delta", {}).get("text")
+                    ) or chunk.get("content") or chunk.get("text")
+                if not text and isinstance(chunk, str):
+                    text = chunk
+                if text:
+                    full += text
+                    yield f"data: {json.dumps({'type': 'content', 'content': text})}\n\n"
+        else:
+            # Server-side mock stream (deterministic)
+            demo = f"Bonjour ! Tu as dit: {payload.message}\n\nJe peux t'aider étape par étape."
+            for token in demo.split(" "):
+                full += (token + " ")
+                yield f"data: {json.dumps({'type': 'content', 'content': token + ' '})}\n\n"
+                await asyncio.sleep(0.02)
+
+        # 6) Save assistant message
+        await append_message(sid, "assistant", full, meta={"provider": payload.provider, "model": payload.model})
+
+        yield f"data: {json.dumps({'type': 'complete', 'session_id': sid})}\n\n"
+    except Exception as e:
+        logging.exception("LLM streaming error")
+        yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+
+@api_router.post("/chat/stream")
+async def chat_stream(input: ChatStreamInput):
+    return app.responses.StreamingResponse(
+        sse_chat_generator(input),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        },
+    )
+
+
 # Include the router in the main app
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
