@@ -14,7 +14,7 @@ export default function ChatMessage({ message }) {
 
   return (
     <div className={cx("w-full flex gap-3", isUser ? "justify-end" : "justify-start")}> 
-      {!isUser &amp;&amp; (
+      {!isUser && (
         <Avatar className="h-8 w-8">
           <AvatarFallback className="bg-secondary text-secondary-foreground">
             <Bot className="h-4 w-4" />
