@@ -112,7 +112,7 @@ export default function Chat() {
       deafen();
 
       const sid = getSessionId();
-      const url = `${API}/chat/stream?q=${encodeURIComponent(text)}&sessionId=${encodeURIComponent(sid)}&provider=openai&model=gpt-4o-mini`;
+      const url = `${API}/chat/stream?q=${encodeURIComponent(text)}&sessionId=${encodeURIComponent(sid)}&provider=kernel&model=local`;
       const es = new EventSource(url);
       esRef.current = es;
       setUsingServer(true);
