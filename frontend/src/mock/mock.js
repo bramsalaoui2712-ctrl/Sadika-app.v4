@@ -52,7 +52,7 @@ export async function simulateAIResponse(userText, onToken = () => {}) {
     // variable delay for a more organic feeling
     const delay = 12 + Math.random() * 28;
     // eslint-disable-next-line no-await-in-loop
-    await new Promise((r) =&gt; setTimeout(r, delay));
+    await new Promise((r) => setTimeout(r, delay));
   }
   return acc;
 }
