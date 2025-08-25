@@ -33,7 +33,7 @@ export default function ChatMessage({ message }) {
         <p style={{ whiteSpace: "pre-wrap" }}>{message.content}</p>
       </Card>
 
-      {isUser &amp;&amp; (
+      {isUser && (
         <Avatar className="h-8 w-8">
           <AvatarFallback className="bg-primary text-primary-foreground">
             <UserRound className="h-4 w-4" />
