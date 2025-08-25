@@ -45,7 +45,7 @@ export async function simulateAIResponse(userText, onToken = () => {}) {
   const tokens = reply.split(/(\s+)/); // include spaces to feel more real
 
   let acc = "";
-  for (let i = 0; i &lt; tokens.length; i++) {
+  for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     acc += t;
     onToken(acc);
