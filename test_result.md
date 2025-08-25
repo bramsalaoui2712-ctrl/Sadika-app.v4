@@ -194,8 +194,7 @@
 
 ## test_plan:
   current_focus:
-    - "SSE chat streaming endpoint (/api/chat/stream)"
-    - "Chat history endpoint (/api/chat/history)"
+    - "All kernel integration tests completed successfully"
   stuck_tasks:
     - 
   test_all: false
@@ -204,3 +203,5 @@
 ## agent_communication:
   - agent: "main"
     message: "Please test backend SSE streaming and history. The SSE stream should emit a 'session' event first, then multiple 'content' chunks, and 'complete'. Use session_id to call /api/chat/history. Note: real LLM may fallback to mock if upstream unavailable; this is expected."
+  - agent: "testing"
+    message: "✅ ALL KERNEL INTEGRATION TESTS PASSED: 1) Kernel chat stream with French input works perfectly - proper SSE sequence, French text handling, local processing. 2) Chat history persistence verified - user+assistant messages stored correctly. 3) Kernel memory GET/POST operations working. 4) Kernel feedback endpoint functional. 5) Kernel mutation endpoint returns proper result with adopted boolean. 6) OpenAI provider regression test passed - no breaking changes. Backend is fully functional with kernel integration. All routes properly prefixed with /api and backend running on 0.0.0.0:8001 as expected."
