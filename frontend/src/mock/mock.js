@@ -35,7 +35,7 @@ export async function simulateAIResponse(userText, onToken = () => {}) {
     (userText || "").trim().length < 4
       ? "Je t'écoute. Donne-moi un peu plus de contexte."
       : `${baseReplies[Math.floor(Math.random() * baseReplies.length)]} ${
-          userText.length &gt; 140
+          userText.length > 140
             ? "Je vais condenser l'essentiel pour toi."
             : ""
         }\n\n${
