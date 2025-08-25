@@ -17,7 +17,7 @@ import asyncio
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 # Kernel adapter
 try:
-    from kernel_adapter import run_kernel
+    from kernel_adapter import run_kernel, memory_get, memory_approve, evaluator_feedback, mutate_summarizer
 except Exception:
     run_kernel = None
 
@@ -74,6 +74,9 @@ class ChatStreamInput(BaseModel):
     model: Optional[str] = Field(default="local", description="model name for provider")
     temperature: Optional[float] = None
     max_tokens: Optional[int] = 1024
+    mode: Optional[str] = Field(default="public", description="public|private (noyau)")
+    council: Optional[int] = Field(default=1, ge=1, le=5)
+    truth: Optional[bool] = Field(default=True)
 
 class ChatHistoryResponse(BaseModel):
     session_id: str
@@ -129,8 +132,7 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
     try:
         provider = (payload.provider or "kernel").lower()
         if provider == "kernel" and run_kernel is not None:
-            # Run user-provided kernel
-            final_text = run_kernel(sid, payload.message, mode="public")
+            final_text = run_kernel(sid, payload.message, mode=(payload.mode or "public"), council=payload.council, truth=payload.truth)
             for part in final_text.split(" "):
                 full += part + " "
                 yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
@@ -154,7 +156,7 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
                 yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
                 await asyncio.sleep(0.01)
 
-        await append_message(sid, "assistant", full.strip(), meta={"provider": provider, "model": payload.model})
+        await append_message(sid, "assistant", full.strip(), meta={"provider": provider, "model": payload.model, "mode": payload.mode, "council": payload.council, "truth": payload.truth})
         yield f"data: {json.dumps({'type': 'complete', 'session_id': sid})}\n\n"
     except Exception as e:
         logging.exception("Kernel/LLM streaming error")
@@ -182,7 +184,7 @@ async def chat_stream(input: ChatStreamInput):
     )
 
 @api_router.get("/chat/stream")
-async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Optional[str] = None, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = 1024):
+async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Optional[str] = None, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = 1024, mode: Optional[str] = "public", council: Optional[int] = 1, truth: Optional[bool] = True):
     input = ChatStreamInput(
         message=q,
         session_id=sessionId,
@@ -190,6 +192,9 @@ async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Opt
         model=model or "local",
         temperature=temperature,
         max_tokens=max_tokens,
+        mode=mode,
+        council=council,
+        truth=truth,
     )
     return StreamingResponse(
         sse_chat_generator(input),
@@ -200,6 +205,52 @@ async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Opt
             "X-Accel-Buffering": "no"
         },
     )
+
+# ======== Kernel Admin Endpoints ========
+class MemoryApproveBody(BaseModel):
+    key: str
+    value: Any
+
+class FeedbackBody(BaseModel):
+    label: str  # "approve" | "reject"
+
+class MutateBody(BaseModel):
+    trials: Optional[int] = 5
+
+@api_router.get("/kernel/memory")
+async def kernel_memory():
+    try:
+        return {"ok": True, "memory": memory_get()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/kernel/memory/approve")
+async def kernel_memory_approve(body: MemoryApproveBody):
+    try:
+        memory_approve(body.key, body.value)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/kernel/feedback")
+async def kernel_feedback(body: FeedbackBody):
+    try:
+        if body.label not in ("approve", "reject"):
+            raise HTTPException(status_code=400, detail="label invalide")
+        evaluator_feedback(body.label)
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/kernel/mutate")
+async def kernel_mutate(body: MutateBody):
+    try:
+        res = mutate_summarizer(body.trials or 5)
+        return {"ok": True, "result": res}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Include the router in the main app
 app.include_router(api_router)
