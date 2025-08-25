@@ -15,7 +15,11 @@ import asyncio
 
 # LLM integration (Emergent Integrations)
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-
+# Kernel adapter
+try:
+    from kernel_adapter import run_kernel
+except Exception:
+    run_kernel = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', override=True)
@@ -25,10 +29,8 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# LLM Client
+# LLM Key flag
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
-if not EMERGENT_LLM_KEY:
-    logging.warning("EMERGENT_LLM_KEY missing. /api/chat will run in mock mode.")
 llm_client = True if EMERGENT_LLM_KEY else None  # flag only; we instantiate LlmChat per-request
 
 # Create the main app without a prefix
@@ -68,9 +70,9 @@ async def get_status_checks():
 class ChatStreamInput(BaseModel):
     message: str
     session_id: Optional[str] = None
-    provider: Optional[str] = Field(default="openai", description="openai|anthropic|google")
-    model: Optional[str] = Field(default="claude-3-sonnet", description="model name for provider")
-    temperature: Optional[float] = 0.7
+    provider: Optional[str] = Field(default="kernel", description="kernel|openai|anthropic|google")
+    model: Optional[str] = Field(default="local", description="model name for provider")
+    temperature: Optional[float] = None
     max_tokens: Optional[int] = 1024
 
 class ChatHistoryResponse(BaseModel):
@@ -80,7 +82,6 @@ class ChatHistoryResponse(BaseModel):
 SESSION_COL = "chat_sessions"
 
 async def ensure_session(session_id: Optional[str]) -> str:
-    """Return a valid session_id; create session doc if new."""
     sid = session_id or (str(uuid.uuid4()))
     existing = await db[SESSION_COL].find_one({"session_id": sid})
     if not existing:
@@ -117,70 +118,52 @@ async def chat_history(sessionId: str):
 
 
 async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, None]:
-    """SSE generator that streams LLM tokens or a server-side mock if no key."""
-    # 1) Ensure session
     sid = await ensure_session(payload.session_id)
-    
-    # 2) Persist user message
     await append_message(sid, "user", payload.message)
-
-    # 3) Send session event first
     yield f"data: {json.dumps({'type': 'session', 'session_id': sid})}\n\n"
 
-    # 4) Build messages from history for context
     history = await get_history(sid)
     messages = [{"role": m["role"], "content": m["content"]} for m in history]
 
-    # 5) Stream from real LLM if key present, else mock
     full = ""
     try:
-        if llm_client:
-            # Real LLM streaming via Emergent Integrations
-            # Normalize provider/model for Emergent Universal Key
-            prov = (payload.provider or "openai").lower()
+        provider = (payload.provider or "kernel").lower()
+        if provider == "kernel" and run_kernel is not None:
+            # Run user-provided kernel
+            final_text = run_kernel(sid, payload.message, mode="public")
+            for part in final_text.split(" "):
+                full += part + " "
+                yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
+                await asyncio.sleep(0.005)
+        else:
+            # Fallback to Emergent LLM via universal key (OpenAI path default)
+            prov = provider
             modl = (payload.model or "o4-mini")
-            # Map google->gemini for this library
             if prov == "google":
                 prov = "gemini"
-            # With Universal Key, routing passes through Emergent proxy using OpenAI adapter by default.
-            # Force OpenAI path for non-gemini providers to avoid direct Anthropic/Gemini 401 with universal key.
             if prov != "gemini":
                 prov = "openai"
-                # ensure an openai model name
-                if not (modl.startswith("gpt-") or modl.startswith("o4") or modl.startswith("gpt4") or modl.startswith("o3") ):
+                if not (modl.startswith("gpt-") or modl.startswith("o4") or modl.startswith("gpt4") or modl.startswith("o3")):
                     modl = "o4-mini"
-
             chat = (LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message="Tu es une IA utile.", initial_messages=messages)
                     .with_model(prov, modl)
-                    .with_params(max_tokens=payload.max_tokens or 1024))  # drop temperature for O-series compatibility
-            # Non-streaming method in this library; emulate streaming by chunking the final text
+                    .with_params(max_tokens=payload.max_tokens or 1024))
             final_text = await chat.send_message(UserMessage(text=payload.message))
             for part in final_text.split(" "):
                 full += part + " "
                 yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
                 await asyncio.sleep(0.01)
-        else:
-            # Server-side mock stream (deterministic)
-            demo = f"Bonjour ! Tu as dit: {payload.message}\n\nJe peux t'aider étape par étape."
-            for token in demo.split(" "):
-                full += (token + " ")
-                yield f"data: {json.dumps({'type': 'content', 'content': token + ' '})}\n\n"
-                await asyncio.sleep(0.02)
 
-        # 6) Save assistant message
-        await append_message(sid, "assistant", full, meta={"provider": payload.provider, "model": payload.model})
-
+        await append_message(sid, "assistant", full.strip(), meta={"provider": provider, "model": payload.model})
         yield f"data: {json.dumps({'type': 'complete', 'session_id': sid})}\n\n"
     except Exception as e:
-        logging.exception("LLM streaming error")
-        # Fallback to mock continuation for UX
+        logging.exception("Kernel/LLM streaming error")
         if not full:
-            demo = "Désolé, le service IA est momentanément indisponible. Voici un aperçu: "
+            demo = "Désolé, le service a rencontré un souci."
             for token in demo.split(" "):
                 yield f"data: {json.dumps({'type': 'content', 'content': token + ' '})}\n\n"
                 await asyncio.sleep(0.02)
-            full = demo
-            await append_message(sid, "assistant", full, meta={"error": str(e)})
+            await append_message(sid, "assistant", demo, meta={"error": str(e)})
             yield f"data: {json.dumps({'type': 'complete', 'session_id': sid})}\n\n"
         else:
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
@@ -199,12 +182,12 @@ async def chat_stream(input: ChatStreamInput):
     )
 
 @api_router.get("/chat/stream")
-async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Optional[str] = None, model: Optional[str] = None, temperature: Optional[float] = 0.7, max_tokens: Optional[int] = 1024):
+async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Optional[str] = None, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = 1024):
     input = ChatStreamInput(
         message=q,
         session_id=sessionId,
-        provider=provider or "anthropic",
-        model=model or "claude-3-sonnet",
+        provider=provider or "kernel",
+        model=model or "local",
         temperature=temperature,
         max_tokens=max_tokens,
     )
@@ -218,7 +201,6 @@ async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Opt
         },
     )
 
-
 # Include the router in the main app
 app.include_router(api_router)
 
@@ -230,7 +212,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
