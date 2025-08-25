@@ -14,7 +14,7 @@ import json
 import asyncio
 
 # LLM integration (Emergent Integrations)
-from emergentintegrations import LLMClient
+from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 
 ROOT_DIR = Path(__file__).parent
@@ -29,7 +29,7 @@ db = client[os.environ['DB_NAME']]
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 if not EMERGENT_LLM_KEY:
     logging.warning("EMERGENT_LLM_KEY missing. /api/chat will run in mock mode.")
-llm_client = LLMClient(api_key=EMERGENT_LLM_KEY) if EMERGENT_LLM_KEY else None
+llm_client = LlmChat(api_key=EMERGENT_LLM_KEY) if EMERGENT_LLM_KEY else None
 
 # Create the main app without a prefix
 app = FastAPI()
