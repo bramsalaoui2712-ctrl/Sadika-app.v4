@@ -39,7 +39,7 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const [tts, setTts] = useState(() => localStorage.getItem(TTS_KEY) === "1");
-  const scrollRef = useRef(null);
+  const bottomRef = useRef(null);
   const recognitionRef = useRef(null);
   const interimRef = useRef("");
   const speakingRef = useRef(false);
