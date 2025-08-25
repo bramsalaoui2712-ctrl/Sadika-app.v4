@@ -83,7 +83,7 @@ export default function Chat() {
       });
 
       // Speak after fully formed
-      if (tts &amp;&amp; "speechSynthesis" in window &amp;&amp; !speakingRef.current) {
+      if (tts && "speechSynthesis" in window && !speakingRef.current) {
         const full = (prev => prev.find((x) => x.id === asstId)?.content)(messages);
         // In case state lag, fallback to current DOM text
         const finalText = full || document.querySelector(`[data-mid="${asstId}"]`)?.textContent || "";
