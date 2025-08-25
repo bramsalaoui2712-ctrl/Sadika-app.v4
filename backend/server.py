@@ -195,6 +195,26 @@ async def chat_stream(input: ChatStreamInput):
         },
     )
 
+@api_router.get("/chat/stream")
+async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Optional[str] = None, model: Optional[str] = None, temperature: Optional[float] = 0.7, max_tokens: Optional[int] = 1024):
+    input = ChatStreamInput(
+        message=q,
+        session_id=sessionId,
+        provider=provider or "anthropic",
+        model=model or "claude-3-sonnet",
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return StreamingResponse(
+        sse_chat_generator(input),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        },
+    )
+
 
 # Include the router in the main app
 app.include_router(api_router)
