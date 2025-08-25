@@ -117,7 +117,7 @@ export default function Chat() {
       rec.onresult = (e) => {
         let interim = "";
         let final = "";
-        for (let i = 0; i &lt; e.results.length; i++) {
+        for (let i = 0; i < e.results.length; i++) {
           const res = e.results[i];
           if (res.isFinal) final += res[0].transcript;
           else interim += res[0].transcript;
