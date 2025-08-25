@@ -138,7 +138,7 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
             # Real LLM streaming via Emergent Integrations
             # Normalize provider/model for Emergent Universal Key
             prov = (payload.provider or "openai").lower()
-            modl = (payload.model or "o4-mini")
+            modl = (payload.model or "gpt-4o-mini")
             # Map google->gemini for this library
             if prov == "google":
                 prov = "gemini"
