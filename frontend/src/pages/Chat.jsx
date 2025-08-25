@@ -55,9 +55,13 @@ export default function Chat() {
 
   useEffect(() => { getSessionId(); }, []);
 
-  // Auto-scroll
+  // Auto-scroll to bottom smoothly
   useEffect(() => {
-    if (scrollRef.current) {
+    if (!scrollRef.current) return;
+    try {
+      const el = scrollRef.current;
+      el.scrollTo({ top: el.scrollHeight + 200, behavior: "smooth" });
+    } catch {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight + 200;
     }
   }, [messages]);
