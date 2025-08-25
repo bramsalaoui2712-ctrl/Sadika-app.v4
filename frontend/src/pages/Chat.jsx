@@ -18,6 +18,7 @@ const TTS_KEY = "chat.tts";
 const KERNEL_MODE_KEY = "kernel.mode";
 const KERNEL_COUNCIL_KEY = "kernel.council";
 const KERNEL_TRUTH_KEY = "kernel.truth";
+const HYBRID_KEY = "hybrid.on";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = BACKEND_URL ? `${BACKEND_URL}/api` : undefined;
@@ -43,22 +44,23 @@ export default function Chat() {
   const [tts, setTts] = useState(() => localStorage.getItem(TTS_KEY) === "1");
   const [usingServer, setUsingServer] = useState(false);
 
-  // kernel settings
+  // kernel/hybride settings
   const [kernelMode, setKernelMode] = useState(() => localStorage.getItem(KERNEL_MODE_KEY) || "public");
   const [kernelCouncil, setKernelCouncil] = useState(() => parseInt(localStorage.getItem(KERNEL_COUNCIL_KEY) || "1", 10));
   const [kernelTruth, setKernelTruth] = useState(() => (localStorage.getItem(KERNEL_TRUTH_KEY) || "1") === "1");
+  const [hybridOn, setHybridOn] = useState(() => (localStorage.getItem(HYBRID_KEY) || "1") === "1");
   const [showSettings, setShowSettings] = useState(false);
 
   const recognitionRef = useRef(null);
-  const interimRef = useRef("");
   const speakingRef = useRef(false);
 
-  // Persist messages
+  // Persist
   useEffect(() => { localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages)); }, [messages]);
   useEffect(() => { localStorage.setItem(TTS_KEY, tts ? "1" : "0"); }, [tts]);
   useEffect(() => { localStorage.setItem(KERNEL_MODE_KEY, kernelMode); }, [kernelMode]);
   useEffect(() => { localStorage.setItem(KERNEL_COUNCIL_KEY, String(kernelCouncil)); }, [kernelCouncil]);
   useEffect(() => { localStorage.setItem(KERNEL_TRUTH_KEY, kernelTruth ? "1" : "0"); }, [kernelTruth]);
+  useEffect(() => { localStorage.setItem(HYBRID_KEY, hybridOn ? "1" : "0"); }, [hybridOn]);
 
   useEffect(() => { getSessionId(); }, []);
 
@@ -90,11 +92,13 @@ export default function Chat() {
       const qs = new URLSearchParams({
         q: text,
         sessionId: sid,
-        provider: "kernel",
-        model: "local",
+        provider: hybridOn ? "hybrid" : "kernel",
+        model: hybridOn ? "gpt-4o-mini" : "local",
         mode: kernelMode || "public",
         council: String(Math.max(1, Math.min(5, kernelCouncil || 1))),
         truth: kernelTruth ? "1" : "0",
+        strict_identity: "1",
+        refusal_handling: "1",
       });
       const url = `${API}/chat/stream?${qs.toString()}`;
       const es = new EventSource(url);
@@ -127,20 +131,7 @@ export default function Chat() {
       console.error(e);
       toast({ title: "Erreur", description: "La requête SSE a échoué." });
     }
-  }, [API, input, tts, toast, messages, kernelMode, kernelCouncil, kernelTruth]);
-
-  const startListening = useCallback(() => {
-    try {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) { toast({ title: "Micro non supporté", description: "Non disponible." }); return; }
-      const rec = new SR(); rec.lang = "fr-FR"; rec.interimResults = true; rec.continuous = false;
-      rec.onresult = (e) => { let final = ""; for (let i=0;i<e.results.length;i++){ const r=e.results[i]; if (r.isFinal) final += r[0].transcript; }
-        if (final) setInput((prev) => (prev ? prev+" " : "") + final); };
-      rec.onerror = () => { setListening(false); }; rec.onend = () => { setListening(false); };
-      recognitionRef.current = rec; setListening(true); rec.start();
-    } catch { setListening(false); }
-  }, [toast]);
-  const stopListening = useCallback(() => { const rec = recognitionRef.current; if (rec) { try{rec.stop();}catch{} } setListening(false); }, []);
+  }, [API, input, tts, toast, messages, kernelMode, kernelCouncil, kernelTruth, hybridOn]);
 
   const Header = useMemo(() => (
     <div className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
@@ -182,12 +173,16 @@ export default function Chat() {
                 <span className="text-sm text-muted-foreground">Cercle de Vérité</span>
                 <Switch checked={kernelTruth} onCheckedChange={setKernelTruth} />
               </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Hybride (noyau + LLM)</span>
+                <Switch checked={hybridOn} onCheckedChange={setHybridOn} />
+              </div>
             </div>
           </Card>
         </div>
       )}
     </div>
-  ), [tts, showSettings, kernelMode, kernelCouncil, kernelTruth]);
+  ), [tts, showSettings, kernelMode, kernelCouncil, kernelTruth, hybridOn]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -219,33 +214,17 @@ export default function Chat() {
       <footer className="fixed bottom-0 left-0 right-0 bg-background/90 backdrop-blur border-t">
         <div className="max-w-screen-sm mx-auto px-3 py-2">
           <div className="flex items-end gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="icon" variant={listening ? "destructive" : "secondary"} className="shrink-0" onClick={listening ? stopListening : startListening}>
-                    {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{listening ? "Arrêter" : "Parler"}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
+            <Button size="icon" variant={listening ? "destructive" : "secondary"} className="shrink-0" onClick={()=>setListening((s)=>!s)}>
+              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
             <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Écris ou dicte ton message..." className="min-h-[44px] max-h-[132px] resize-y" />
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button onClick={onSend} disabled={!input.trim()} className="shrink-0">
-                    Envoyer
-                    <Send className="h-4 w-4 ml-2" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Envoyer</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Button onClick={onSend} disabled={!input.trim()} className="shrink-0">
+              Envoyer
+              <Send className="h-4 w-4 ml-2" />
+            </Button>
           </div>
           <div className="text-[11px] text-muted-foreground mt-1 pl-1">
-            {usingServer ? `Kernel (${kernelMode}, conseil ${kernelCouncil}, vérité ${kernelTruth? 'on':'off'}) via SSE.` : "Mode démonstration: réponses simulées en local (aucun appel serveur)."}
+            {usingServer ? (hybridOn ? `Hybride (LLM sous contrôle du noyau) — SSE.` : `Kernel pur — SSE.`) : "Mode démonstration: réponses simulées en local (aucun appel serveur)."}
           </div>
         </div>
       </footer>

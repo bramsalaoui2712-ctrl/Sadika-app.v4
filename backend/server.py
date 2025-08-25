@@ -17,7 +17,15 @@ import asyncio
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 # Kernel adapter
 try:
-    from kernel_adapter import run_kernel, memory_get, memory_approve, evaluator_feedback, mutate_summarizer
+    from kernel_adapter import (
+        run_kernel,
+        memory_get,
+        memory_approve,
+        evaluator_feedback,
+        mutate_summarizer,
+        build_hybrid_system_message,
+        post_filter_identity,
+    )
 except Exception:
     run_kernel = None
 
@@ -70,13 +78,15 @@ async def get_status_checks():
 class ChatStreamInput(BaseModel):
     message: str
     session_id: Optional[str] = None
-    provider: Optional[str] = Field(default="kernel", description="kernel|openai|anthropic|google")
+    provider: Optional[str] = Field(default="kernel", description="kernel|hybrid|openai|anthropic|google")
     model: Optional[str] = Field(default="local", description="model name for provider")
     temperature: Optional[float] = None
     max_tokens: Optional[int] = 1024
     mode: Optional[str] = Field(default="public", description="public|private (noyau)")
     council: Optional[int] = Field(default=1, ge=1, le=5)
     truth: Optional[bool] = Field(default=True)
+    strict_identity: Optional[bool] = Field(default=True)
+    refusal_handling: Optional[bool] = Field(default=True)
 
 class ChatHistoryResponse(BaseModel):
     session_id: str
@@ -137,8 +147,26 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
                 full += part + " "
                 yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
                 await asyncio.sleep(0.005)
+        elif provider == "hybrid" and llm_client and EMERGENT_LLM_KEY:
+            # 1) Construire system prompt identitaire via noyau
+            sysmsg = build_hybrid_system_message()
+            # 2) Appel LLM (OpenAI path par défaut pour Universal Key)
+            prov = "openai"
+            modl = payload.model or "gpt-4o-mini"
+            chat = (
+                LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message=sysmsg, initial_messages=[])
+                .with_model(prov, modl)
+                .with_params(max_tokens=payload.max_tokens or 1024)
+            )
+            raw = await chat.send_message(UserMessage(text=payload.message))
+            # 3) Post-filtre identité et vérité par noyau
+            filtered = post_filter_identity(payload.message, raw, strict_identity=bool(payload.strict_identity))
+            for part in filtered.split(" "):
+                full += part + " "
+                yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
+                await asyncio.sleep(0.008)
         else:
-            # Fallback to Emergent LLM via universal key (OpenAI path default)
+            # Fallback LLM simple
             prov = provider
             modl = (payload.model or "o4-mini")
             if prov == "google":
@@ -147,16 +175,24 @@ async def sse_chat_generator(payload: ChatStreamInput) -> AsyncGenerator[str, No
                 prov = "openai"
                 if not (modl.startswith("gpt-") or modl.startswith("o4") or modl.startswith("gpt4") or modl.startswith("o3")):
                     modl = "o4-mini"
-            chat = (LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message="Tu es une IA utile.", initial_messages=messages)
+            chat = (LlmChat(api_key=EMERGENT_LLM_KEY, session_id=sid, system_message="Tu es al sadika.", initial_messages=messages)
                     .with_model(prov, modl)
                     .with_params(max_tokens=payload.max_tokens or 1024))
             final_text = await chat.send_message(UserMessage(text=payload.message))
-            for part in final_text.split(" "):
+            filtered = post_filter_identity(payload.message, final_text, strict_identity=True)
+            for part in filtered.split(" "):
                 full += part + " "
                 yield f"data: {json.dumps({'type': 'content', 'content': part + ' '})}\n\n"
                 await asyncio.sleep(0.01)
 
-        await append_message(sid, "assistant", full.strip(), meta={"provider": provider, "model": payload.model, "mode": payload.mode, "council": payload.council, "truth": payload.truth})
+        await append_message(sid, "assistant", full.strip(), meta={
+            "provider": provider,
+            "model": payload.model,
+            "mode": payload.mode,
+            "council": payload.council,
+            "truth": payload.truth,
+            "strict_identity": payload.strict_identity,
+        })
         yield f"data: {json.dumps({'type': 'complete', 'session_id': sid})}\n\n"
     except Exception as e:
         logging.exception("Kernel/LLM streaming error")
@@ -184,17 +220,19 @@ async def chat_stream(input: ChatStreamInput):
     )
 
 @api_router.get("/chat/stream")
-async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Optional[str] = None, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = 1024, mode: Optional[str] = "public", council: Optional[int] = 1, truth: Optional[bool] = True):
+async def chat_stream_get(q: str, sessionId: Optional[str] = None, provider: Optional[str] = None, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = 1024, mode: Optional[str] = "public", council: Optional[int] = 1, truth: Optional[bool] = True, strict_identity: Optional[bool] = True, refusal_handling: Optional[bool] = True):
     input = ChatStreamInput(
         message=q,
         session_id=sessionId,
         provider=provider or "kernel",
-        model=model or "local",
+        model=model or ("gpt-4o-mini" if (provider or "").lower()=="hybrid" else "local"),
         temperature=temperature,
         max_tokens=max_tokens,
         mode=mode,
         council=council,
         truth=truth,
+        strict_identity=strict_identity,
+        refusal_handling=refusal_handling,
     )
     return StreamingResponse(
         sse_chat_generator(input),
