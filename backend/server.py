@@ -29,7 +29,7 @@ db = client[os.environ['DB_NAME']]
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 if not EMERGENT_LLM_KEY:
     logging.warning("EMERGENT_LLM_KEY missing. /api/chat will run in mock mode.")
-llm_client = True if EMERGENT_LLM_KEY else None  # flag to indicate real LLM available
+llm_client = True if EMERGENT_LLM_KEY else None  # flag only; we instantiate LlmChat per-request
 
 # Create the main app without a prefix
 app = FastAPI()
