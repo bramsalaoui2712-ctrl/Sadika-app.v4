@@ -4,23 +4,24 @@ import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 // import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
-import { Separator } from "../components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
 import { Switch } from "../components/ui/switch";
 import { Badge } from "../components/ui/badge";
 import { Mic, MicOff, Send, Volume2, VolumeX, Sparkles } from "lucide-react";
 import ChatMessage from "../components/ChatMessage";
-import { seedMessages, quickPrompts, simulateAIResponse } from "../mock/mock";
+import { seedMessages, quickPrompts } from "../mock/mock";
 import { useToast } from "../hooks/use-toast";
 
 const SESSION_KEY = "chat.session.id";
 const MESSAGES_KEY = "chat.messages";
 const TTS_KEY = "chat.tts";
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : undefined; // must be provided by env
+
 function getSessionId() {
   const existing = localStorage.getItem(SESSION_KEY);
   if (existing) return existing;
-  // simple session id
   const sid = Math.random().toString(36).slice(2) + Date.now().toString(36);
   localStorage.setItem(SESSION_KEY, sid);
   return sid;
@@ -39,12 +40,15 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const [tts, setTts] = useState(() => localStorage.getItem(TTS_KEY) === "1");
+  const [usingServer, setUsingServer] = useState(false);
+
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
   const interimRef = useRef("");
   const speakingRef = useRef(false);
+  const esRef = useRef(null);
 
-  // Persist
+  // Persist messages
   useEffect(() => {
     localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
   }, [messages]);
@@ -66,6 +70,15 @@ export default function Chat() {
     }
   }, [messages]);
 
+  const deafen = useCallback(() => {
+    if (esRef.current) {
+      try { esRef.current.close(); } catch {}
+      esRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => { deafen(); }, [deafen]);
+
   const onSend = useCallback(async () => {
     const text = input.trim();
     if (!text) return;
@@ -79,32 +92,77 @@ export default function Chat() {
     const asstMsg = { id: asstId, role: "assistant", content: "", ts: Date.now() };
     setMessages((m) => [...m, asstMsg]);
 
-    try {
-      await simulateAIResponse(text, (acc) => {
-        setMessages((m) =>
-          m.map((mm) => (mm.id === asstId ? { ...mm, content: acc } : mm))
-        );
-      });
-
-      // Speak after fully formed
-      if (tts && "speechSynthesis" in window && !speakingRef.current) {
-        const full = (prev => prev.find((x) => x.id === asstId)?.content)(messages);
-        // In case state lag, fallback to current DOM text
-        const finalText = full || document.querySelector(`[data-mid="${asstId}"]`)?.textContent || "";
-        if (finalText) {
-          speakingRef.current = true;
-          const utter = new SpeechSynthesisUtterance(finalText);
-          utter.lang = "fr-FR";
-          utter.rate = 1;
-          utter.onend = () => { speakingRef.current = false; };
-          window.speechSynthesis.cancel();
-          window.speechSynthesis.speak(utter);
-        }
+    // Prefer real backend SSE if API is configured
+    if (!API) {
+      toast({ title: "Backend absent", description: "La clé REACT_APP_BACKEND_URL n'est pas configurée. Mock local utilisé." });
+      // Fallback: local mock (kept for dev safety)
+      const { simulateAIResponse } = await import("../mock/mock");
+      try {
+        await simulateAIResponse(text, (acc) => {
+          setMessages((m) => m.map((mm) => (mm.id === asstId ? { ...mm, content: acc } : mm)));
+        });
+      } catch (e) {
+        toast({ title: "Erreur", description: "La réponse (mock) a échoué." });
       }
-    } catch (e) {
-      toast({ title: "Erreur", description: "La réponse a échoué (mock)." });
+      return;
     }
-  }, [input, tts, toast, messages]);
+
+    try {
+      // Close any previous stream
+      deafen();
+
+      const sid = getSessionId();
+      const url = `${API}/chat/stream?q=${encodeURIComponent(text)}&sessionId=${encodeURIComponent(sid)}&provider=anthropic&model=claude-3-sonnet`;
+      const es = new EventSource(url);
+      esRef.current = es;
+      setUsingServer(true);
+
+      es.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === "session") {
+            // nothing to do: session_id already known client-side
+          } else if (data.type === "content") {
+            const acc = data.content || "";
+            setMessages((m) => m.map((mm) => (mm.id === asstId ? { ...mm, content: (mm.content || "") + acc } : mm)));
+          } else if (data.type === "complete") {
+            es.close();
+            esRef.current = null;
+            // Speak
+            if (tts && "speechSynthesis" in window && !speakingRef.current) {
+              const msg = (prev => prev.find((x) => x.id === asstId)?.content)(messages);
+              const finalText = msg || document.querySelector(`[data-mid="${asstId}"]`)?.textContent || "";
+              if (finalText) {
+                speakingRef.current = true;
+                const utter = new SpeechSynthesisUtterance(finalText);
+                utter.lang = "fr-FR";
+                utter.rate = 1;
+                utter.onend = () => { speakingRef.current = false; };
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(utter);
+              }
+            }
+          } else if (data.type === "error") {
+            es.close();
+            esRef.current = null;
+            toast({ title: "Erreur serveur", description: data.error || "Flux interrompu." });
+          }
+        } catch (err) {
+          console.error("Parse SSE error", err);
+        }
+      };
+
+      es.onerror = (e) => {
+        console.error("SSE error", e);
+        try { es.close(); } catch {}
+        esRef.current = null;
+        toast({ title: "Connexion perdue", description: "Requête SSE interrompue, bascule en mock." });
+      };
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Erreur", description: "La requête SSE a échoué." });
+    }
+  }, [API, deafen, input, tts, toast, messages]);
 
   const startListening = useCallback(() => {
     try {
@@ -252,7 +310,7 @@ export default function Chat() {
             </TooltipProvider>
           </div>
           <div className="text-[11px] text-muted-foreground mt-1 pl-1">
-            Mode démonstration: réponses simulées en local (aucun appel serveur).
+            {usingServer ? "Connecté au serveur (SSE)." : "Mode démonstration: réponses simulées en local (aucun appel serveur)."}
           </div>
         </div>
       </footer>
