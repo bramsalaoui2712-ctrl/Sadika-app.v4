@@ -68,7 +68,7 @@ async def get_status_checks():
 class ChatStreamInput(BaseModel):
     message: str
     session_id: Optional[str] = None
-    provider: Optional[str] = Field(default="anthropic", description="openai|anthropic|google")
+    provider: Optional[str] = Field(default="openai", description="openai|anthropic|google")
     model: Optional[str] = Field(default="claude-3-sonnet", description="model name for provider")
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 1024
