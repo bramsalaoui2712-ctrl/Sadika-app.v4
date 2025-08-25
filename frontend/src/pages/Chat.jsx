@@ -28,7 +28,7 @@ function getSessionId() {
 
 export default function Chat() {
   const { toast } = useToast();
-  const [messages, setMessages] = useState(() =&gt; {
+  const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem(MESSAGES_KEY);
     if (saved) {
       try { return JSON.parse(saved); } catch {}
@@ -38,53 +38,53 @@ export default function Chat() {
 
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
-  const [tts, setTts] = useState(() =&gt; localStorage.getItem(TTS_KEY) === "1");
+  const [tts, setTts] = useState(() => localStorage.getItem(TTS_KEY) === "1");
   const scrollRef = useRef(null);
   const recognitionRef = useRef(null);
   const interimRef = useRef("");
   const speakingRef = useRef(false);
 
   // Persist
-  useEffect(() =&gt; {
+  useEffect(() => {
     localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
   }, [messages]);
 
-  useEffect(() =&gt; {
+  useEffect(() => {
     localStorage.setItem(TTS_KEY, tts ? "1" : "0");
   }, [tts]);
 
-  useEffect(() =&gt; { getSessionId(); }, []);
+  useEffect(() => { getSessionId(); }, []);
 
   // Auto-scroll
-  useEffect(() =&gt; {
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight + 200;
     }
   }, [messages]);
 
-  const onSend = useCallback(async () =&gt; {
+  const onSend = useCallback(async () => {
     const text = input.trim();
     if (!text) return;
 
     const userMsg = { id: `m-${Date.now()}`, role: "user", content: text, ts: Date.now() };
-    setMessages((m) =&gt; [...m, userMsg]);
+    setMessages((m) => [...m, userMsg]);
     setInput("");
 
     // create assistant placeholder and stream into it
     const asstId = `a-${Date.now()}`;
     const asstMsg = { id: asstId, role: "assistant", content: "", ts: Date.now() };
-    setMessages((m) =&gt; [...m, asstMsg]);
+    setMessages((m) => [...m, asstMsg]);
 
     try {
-      await simulateAIResponse(text, (acc) =&gt; {
-        setMessages((m) =&gt;
-          m.map((mm) =&gt; (mm.id === asstId ? { ...mm, content: acc } : mm))
+      await simulateAIResponse(text, (acc) => {
+        setMessages((m) =>
+          m.map((mm) => (mm.id === asstId ? { ...mm, content: acc } : mm))
         );
       });
 
       // Speak after fully formed
       if (tts &amp;&amp; "speechSynthesis" in window &amp;&amp; !speakingRef.current) {
-        const full = (prev =&gt; prev.find((x) =&gt; x.id === asstId)?.content)(messages);
+        const full = (prev => prev.find((x) => x.id === asstId)?.content)(messages);
         // In case state lag, fallback to current DOM text
         const finalText = full || document.querySelector(`[data-mid="${asstId}"]`)?.textContent || "";
         if (finalText) {
@@ -92,7 +92,7 @@ export default function Chat() {
           const utter = new SpeechSynthesisUtterance(finalText);
           utter.lang = "fr-FR";
           utter.rate = 1;
-          utter.onend = () =&gt; { speakingRef.current = false; };
+          utter.onend = () => { speakingRef.current = false; };
           window.speechSynthesis.cancel();
           window.speechSynthesis.speak(utter);
         }
@@ -102,7 +102,7 @@ export default function Chat() {
     }
   }, [input, tts, toast, messages]);
 
-  const startListening = useCallback(() =&gt; {
+  const startListening = useCallback(() => {
     try {
       const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
@@ -114,7 +114,7 @@ export default function Chat() {
       rec.interimResults = true;
       rec.continuous = false;
 
-      rec.onresult = (e) =&gt; {
+      rec.onresult = (e) => {
         let interim = "";
         let final = "";
         for (let i = 0; i &lt; e.results.length; i++) {
@@ -123,15 +123,15 @@ export default function Chat() {
           else interim += res[0].transcript;
         }
         interimRef.current = interim;
-        setInput((prev) =&gt; (final ? (prev ? prev + " " : "") + final : prev));
+        setInput((prev) => (final ? (prev ? prev + " " : "") + final : prev));
       };
 
-      rec.onerror = (ev) =&gt; {
+      rec.onerror = (ev) => {
         console.error(ev);
         toast({ title: "Erreur micro", description: "Impossible d'utiliser le micro maintenant." });
         setListening(false);
       };
-      rec.onend = () =&gt; {
+      rec.onend = () => {
         setListening(false);
       };
 
@@ -145,7 +145,7 @@ export default function Chat() {
     }
   }, [toast]);
 
-  const stopListening = useCallback(() =&gt; {
+  const stopListening = useCallback(() => {
     const rec = recognitionRef.current;
     if (rec) {
       try { rec.stop(); } catch {}
@@ -154,7 +154,7 @@ export default function Chat() {
   }, []);
 
   const Header = useMemo(
-    () =&gt; (
+    () => (
       <div className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
         <div className="max-w-screen-sm mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -182,12 +182,12 @@ export default function Chat() {
         <div className="max-w-screen-sm mx-auto px-3 pb-28 pt-3">
           <Card className="p-3 mb-3">
             <div className="flex flex-wrap gap-2">
-              {quickPrompts.map((q, idx) =&gt; (
+              {quickPrompts.map((q, idx) => (
                 <Badge
                   key={idx}
                   variant="secondary"
                   className="cursor-pointer hover:opacity-90"
-                  onClick={() =&gt; setInput(q)}
+                  onClick={() => setInput(q)}
                 >
                   {q}
                 </Badge>
@@ -197,7 +197,7 @@ export default function Chat() {
 
           <ScrollArea className="h-[58vh] rounded-md border" viewportRef={scrollRef}>
             <div className="p-3 space-y-4">
-              {messages.map((m) =&gt; (
+              {messages.map((m) => (
                 <div key={m.id} data-mid={m.id}>
                   <ChatMessage message={m} />
                 </div>
@@ -230,7 +230,7 @@ export default function Chat() {
 
             <Textarea
               value={input}
-              onChange={(e) =&gt; setInput(e.target.value)}
+              onChange={(e) => setInput(e.target.value)}
               placeholder="Écris ou dicte ton message..."
               className="min-h-[44px] max-h-[132px] resize-y"
             />
