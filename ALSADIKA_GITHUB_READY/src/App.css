@@ -1,0 +1,13 @@
+/* Keep minimal custom styles; rely on Tailwind + shadcn */
+/* Remove legacy centering that breaks natural reading flow */
+
+img { max-width: 100%; height: auto; display: block; }
+
+/* Subtle animations for interactive feel */
+button, [role="button"], .btn {
+  transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
+}
+
+/**** Accessibility helpers ****/
+:focus { outline: none; }
+:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }

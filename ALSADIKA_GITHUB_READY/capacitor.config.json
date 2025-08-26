@@ -1,0 +1,27 @@
+{
+  "appId": "ai.alsadika.app",
+  "appName": "Al Sâdika",
+  "webDir": "build",
+  "server": {
+    "url": "",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "allowNavigation": [],
+    "minWebViewVersion": "120",
+    "buildOptions": {
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "minSdkVersion": 26
+    }
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    },
+    "Keyboard": {
+      "resize": "body"
+    }
+  }
+}

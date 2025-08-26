@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Al Sâdika</string>
+    <string name="title_activity_main">Al Sâdika</string>
+    <string name="package_name">ai.alsadika.app</string>
+    <string name="custom_url_scheme">ai.alsadika.app</string>
+    <string name="alsadika_accessibility_desc">Al Sâdika peut automatiser les interactions avec votre téléphone en mode Contrôle Total. Ceci n\'est utilisé que si vous activez explicitement ce mode dans les paramètres de l\'application.</string>
+</resources>
