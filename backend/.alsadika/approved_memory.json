@@ -89,5 +89,9 @@
     "approved_only": true,
     "explain_on_write": true,
     "user_validation_required": true
+  },
+  "telemetry_policy": {
+    "cloud_dependencies": "off_by_default",
+    "data_retention": "local_only_unless_explicit_consent"
   }
 }
