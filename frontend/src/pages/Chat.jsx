@@ -334,9 +334,16 @@ export default function Chat() {
           </div>
           <div className="text-[11px] text-muted-foreground mt-1 pl-1">
             {usingServer ? (hybridOn ? `Hybride (LLM sous contrôle du noyau) — SSE.` : `Kernel pur — SSE.`) : "Mode démonstration: réponses simulées en local (aucun appel serveur)."}
+            {isNative && <span className="ml-2 text-green-600">• Natif</span>}
           </div>
         </div>
       </footer>
+
+      {/* Al Sâdika Settings Dialog */}
+      <AlSadikaSettings 
+        isOpen={showAlSadikaSettings} 
+        onClose={() => setShowAlSadikaSettings(false)} 
+      />
     </div>
   );
 }
