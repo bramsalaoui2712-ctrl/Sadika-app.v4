@@ -58,6 +58,27 @@ export default function Chat() {
   const speakingRef = useRef(false);
   const [isNative, setIsNative] = useState(false);
 
+  // Initialize Capacitor
+  useEffect(() => {
+    const initCapacitor = async () => {
+      try {
+        await CapacitorService.initialize();
+        setIsNative(CapacitorService.isNative);
+        
+        if (CapacitorService.isNative) {
+          toast({
+            title: "Al Sâdika",
+            description: "Application native initialisée avec succès"
+          });
+        }
+      } catch (error) {
+        console.error('Capacitor initialization error:', error);
+      }
+    };
+    
+    initCapacitor();
+  }, []);
+
   // Persist
   useEffect(() => { localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages)); }, [messages]);
   useEffect(() => { localStorage.setItem(TTS_KEY, tts ? "1" : "0"); }, [tts]);
