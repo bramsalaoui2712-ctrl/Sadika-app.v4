@@ -320,7 +320,7 @@ export default function Chat() {
       <footer className="fixed bottom-0 left-0 right-0 bg-background/90 backdrop-blur border-t">
         <div className="max-w-screen-sm mx-auto px-3 py-2">
           <div className="flex items-end gap-2">
-            <Button size="icon" variant={listening ? "destructive" : "secondary"} className="shrink-0" onClick={()=>setListening((s)=>!s)}>
+            <Button size="icon" variant={listening ? "destructive" : "secondary"} className="shrink-0" onClick={toggleListening}>
               {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
             <Textarea value={input} onChange={(e) => setInput(e.target.value)} placeholder="Écris ou dicte ton message..." className="min-h-[44px] max-h-[132px] resize-y" />
