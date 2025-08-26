@@ -194,7 +194,8 @@
 
 ## test_plan:
   current_focus:
-    - "All kernel integration tests completed successfully"
+    - "Al Sâdika identity configuration in kernel memory"
+    - "Hybrid mode with new identity enforcement"
   stuck_tasks:
     - 
   test_all: false
