@@ -197,7 +197,8 @@
 
 ## test_plan:
   current_focus:
-    - 
+    - "APK Al Sâdika avec Capacitor (Basique + Contrôle Total)"
+    - "Backend regression test post-APK configuration"
   stuck_tasks:
     - 
   test_all: false
