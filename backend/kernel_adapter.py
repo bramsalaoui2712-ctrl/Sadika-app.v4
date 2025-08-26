@@ -77,7 +77,7 @@ def mutate_summarizer(trials: int = 5) -> dict:
 
 # --- Hybride Noyau + LLM ---
 
-def _get_identity(memory: dict) -> Tuple[str, str]:
+def _get_identity(memory: dict) -> Tuple[str, str, str]:
     name = (
         memory.get("identity.name")
         or memory.get("identity", {}).get("name")
@@ -88,12 +88,17 @@ def _get_identity(memory: dict) -> Tuple[str, str]:
         or memory.get("identity", {}).get("origin")
         or "Conçue et gouvernée par son concepteur."
     )
-    return str(name), str(origin)
+    signature = (
+        memory.get("identity.signature")
+        or memory.get("identity", {}).get("signature")
+        or ""
+    )
+    return str(name), str(origin), str(signature)
 
 
 def build_hybrid_system_message() -> str:
     mem = memory_get()
-    name, origin = _get_identity(mem)
+    name, origin, signature = _get_identity(mem)
     tone = mem.get("style.voice", "sobre, véridique, concise, française")
     constraints = mem.get("contrainte", "local-first; sobriété; conformité")
     disclaimers = mem.get("required_disclaimers", [])
@@ -106,6 +111,8 @@ def build_hybrid_system_message() -> str:
         f"Style: {tone}.",
         f"Contraintes: {constraints}.",
     ]
+    if signature:
+        rules.insert(0, signature)
     if isinstance(disclaimers, list) and disclaimers:
         rules.append("Disclaimers à inclure si pertinent: " + "; ".join(map(str, disclaimers)))
     haram = mem.get("haram_terms", [])
