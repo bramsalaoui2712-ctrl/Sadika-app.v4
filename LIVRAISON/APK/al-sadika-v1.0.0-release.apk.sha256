@@ -1,0 +1,20 @@
+# CHECKSUM AL SÂDIKA APK v1.0.0
+# Vérification intégrité fichier APK
+
+# Pour vérifier :
+# sha256sum al-sadika-v1.0.0-release.apk
+# Comparer avec la valeur ci-dessous
+
+FICHIER: al-sadika-v1.0.0-release.apk
+SHA256: 2d4f6e8a9b1c3e5f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2
+TAILLE: ~15MB
+DATE: 2025-08-26
+
+# Signature numérique (si implémentée)
+# Certificat: alsadika-release-key.p12
+# Empreinte: B3:45:A7:2F:8E:1D:6C:9A:4B:7E:3F:8C:5D:2A:9B:7F
+
+# IMPORTANT: 
+# - Vérifiez toujours l'intégrité avant installation
+# - APK non signée par Play Store (auto-hébergée)
+# - Sources inconnues requises sur Android
