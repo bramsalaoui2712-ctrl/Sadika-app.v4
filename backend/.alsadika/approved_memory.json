@@ -93,5 +93,6 @@
   "telemetry_policy": {
     "cloud_dependencies": "off_by_default",
     "data_retention": "local_only_unless_explicit_consent"
-  }
+  },
+  "test_regression": "post_apk_config"
 }
