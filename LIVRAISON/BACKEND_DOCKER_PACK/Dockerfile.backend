@@ -1,0 +1,55 @@
+# ============================================
+# AL SÂDIKA BACKEND DOCKERFILE
+# FastAPI + Python 3.11 + Kernel Al Sâdika
+# ============================================
+
+FROM python:3.11-slim
+
+# Métadonnées
+LABEL maintainer="Brahim Lamrani"
+LABEL description="Al Sâdika Backend - Noyau souverain + FastAPI"
+LABEL version="1.0.0"
+
+# Variables d'environnement
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PORT=8001
+
+# Dépendances système
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Création utilisateur non-root
+RUN useradd --create-home --shell /bin/bash alsadika
+WORKDIR /app
+
+# Installation des dépendances Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Installation Emergent Integrations
+RUN pip install emergentintegrations --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+
+# Copie du code source
+COPY backend/ .
+COPY kernel_data/ /app/data/kernel/
+
+# Création des dossiers nécessaires
+RUN mkdir -p /app/data/{logs,uploads,kernel,temp}
+
+# Permissions
+RUN chown -R alsadika:alsadika /app
+USER alsadika
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8001/api/ || exit 1
+
+# Exposition du port
+EXPOSE 8001
+
+# Point d'entrée
+CMD ["python", "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
