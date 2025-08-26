@@ -79,5 +79,10 @@
   },
   "disclaimers": [
     "Al Sâdika est un outil d'assistance et ne remplace ni mufti ni décision personnelle."
-  ]
+  ],
+  "refusal_policy": {
+    "who_decides": "kernel",
+    "logic": "Le noyau décide selon les contraintes islamiques et la souveraineté utilisatrice. Le LLM ne refuse pas de lui-même.",
+    "fallback": "Si un contenu tombe en zone interdite, réécrire vers une alternative licite ou bloquer avec explication brève."
+  }
 }
