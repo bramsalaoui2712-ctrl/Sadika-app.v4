@@ -8,7 +8,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Al SÃ¢dika â€” noyau unique (V2, patches fusionnÃ©s)
+Al Sâdika — noyau unique (V2, patches fusionnés)
 Mono-fichier local-first : orchestration, mÃ©moire approuvÃ©e, filtre Ã©thique Verrou, double mode (public/privÃ©),
 sceau durci (PBKDF2 + lockout), Ã©valuateur adaptatif (feedback), mutation A/B validÃ©e dâ€™une compÃ©tence (summarizer),
 intÃ©gritÃ© visible (fingerprint) et limite de dÃ©bit locale.
