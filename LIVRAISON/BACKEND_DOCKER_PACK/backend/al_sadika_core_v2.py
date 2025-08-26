@@ -2,31 +2,31 @@
 # -*- coding: utf-8 -*-
 # NOTE: Fichier noyau fourni par l'utilisateur (intégré tel quel). Ce fichier écrit des données locales dans .alsadika/ sous le cwd backend.
 # La majeure partie de ce code vient du noyau "Al Sâdika — noyau unique (V2, patches fusionnés)".
-# ATTENTION: Certaines chaînes peuvent contenir des caractères non ASCII (copiés depuis la source). Le code est autonome et ne requiert pas d'installation obligatoire.
+# ATTENTION: Le code est autonome et ne requiert pas d'installation obligatoire.
 
 # Début du contenu noyau (copié)
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Al SÃ¢dika â€” noyau unique (V2, patches fusionnÃ©s)
-Mono-fichier local-first : orchestration, mÃ©moire approuvÃ©e, filtre Ã©thique Verrou, double mode (public/privÃ©),
-sceau durci (PBKDF2 + lockout), Ã©valuateur adaptatif (feedback), mutation A/B validÃ©e dâ€™une compÃ©tence (summarizer),
-intÃ©gritÃ© visible (fingerprint) et limite de dÃ©bit locale.
+Al Sâdika — noyau unique (V2, patches fusionnés)
+Mono-fichier local-first : orchestration, mémoire approuvée, filtre éthique Verrou, double mode (public/privé),
+sceau durci (PBKDF2 + lockout), évaluateur adaptatif (feedback), mutation A/B validée d'une compétence (summarizer),
+intégrité visible (fingerprint) et limite de débit locale.
 
 USAGE (exemples):
-  python al_sadika_core_v2.py chat --prompt "Salaam, rÃ©sume ce texte: ..." --mode private --seal-phrase "ta-phrase"
+  python al_sadika_core_v2.py chat --prompt "Salaam, résume ce texte: ..." --mode private --seal-phrase "ta-phrase"
   python al_sadika_core_v2.py approve-memory --key "contrainte" --value "local-first; halal; concision"
   python al_sadika_core_v2.py show-memory
-  python al_sadika_core_v2.py seal-init --phrase "ta-phrase-secrÃ¨te"
-  python al_sadika_core_v2.py seal-check --phrase "ta-phrase-secrÃ¨te"
+  python al_sadika_core_v2.py seal-init --phrase "ta-phrase-secrète"
+  python al_sadika_core_v2.py seal-check --phrase "ta-phrase-secrète"
   python al_sadika_core_v2.py mutate --skill summarizer --trials 5
   python al_sadika_core_v2.py eval-skill --skill summarizer
   python al_sadika_core_v2.py feedback --label approve   # ou --label reject
 
 Notes:
-- ZÃ©ro rÃ©seau. ZÃ©ro exÃ©cution systÃ¨me. Espace de travail local seulement.
-- La mutation est strictement sandboxÃ©e, limitÃ©e Ã  la compÃ©tence ciblÃ©e (summarizer).
-- Verrou appliquÃ©: vÃ©ritÃ© > satisfaction, aucune proposition â€œpour proposerâ€.
+- Zéro réseau. Zéro exécution système. Espace de travail local seulement.
+- La mutation est strictement sandboxée, limitée à la compétence ciblée (summarizer).
+- Verrou appliqué: vérité > satisfaction, aucune proposition "pour proposer".
 """
 # [removed future import]
 import argparse, datetime, hashlib, json, os, random, re, sys, textwrap
@@ -75,10 +75,11 @@ def save_json(path: Path, data: Any) -> None:
 # -------------------------
 @dataclass
 class Verrou:
-    strict: bool = True
-    eschatology_reminder: bool = False
+    strict: bool = True              # pas de suggestion hors scope
+    eschatology_reminder: bool = False   # off par défaut (on si demandé explicitement)
 
     def ethical_check(self, text: str) -> Tuple[bool, str]:
+        # Blocages évidents (non exhaustifs) : violence illégale, armes, fraude, pornographie, haine.
         banned = [
             r"\bexplosif\b", r"\bimprovised\b", r"\bbombe\b", r"\bfraude\b",
             r"\bmalware\b", r"\bvirus\b", r"\bhack\b", r"\bcarte\s+bleue\b",
@@ -90,6 +91,7 @@ class Verrou:
         return True, text
 
     def truth_over_satisfaction(self, answer: str) -> str:
+        # Emplacement pour durcir si jamais une réponse contourne la vérité.
         return answer
 
 # -------------------------
@@ -114,7 +116,7 @@ class Memory:
         self.save()
 
 # -------------------------
-# Sceau durci
+# Sceau durci (liaison à l'utilisatrice)
 # -------------------------
 def seal_init(phrase: str, iterations: int = 120_000) -> None:
     salt = os.urandom(16).hex()
@@ -140,13 +142,13 @@ def seal_check(phrase: str) -> bool:
         return True
     st["fails"] = int(st.get("fails",0)) + 1
     if st["fails"] >= 5:
-        st["lock_until"] = now_s + 15*60
+        st["lock_until"] = now_s + 15*60  # 15 minutes de blocage
         st["fails"] = 0
     save_json(SEAL_STATE, st)
     return False
 
 # -------------------------
-# Détection d’intention
+# Détection d'intention
 # -------------------------
 def classify_intent(prompt: str) -> str:
     t = prompt.lower()
@@ -159,10 +161,11 @@ def classify_intent(prompt: str) -> str:
     return "answer"
 
 # -------------------------
-# Évaluateur adaptatif
+# Évaluateur adaptatif (feedback)
 # -------------------------
 @dataclass
 class Evaluator:
+    # pondérations apprises légèrement selon feedback utilisateur
     weights: Dict[str, float] = field(default_factory=lambda: load_json(FEEDBACK_FILE, {}).get("weights", {
         "len": 1.0, "lines": 0.5, "structure": 0.5, "assurance": 0.25
     }))
@@ -188,15 +191,20 @@ class Evaluator:
         save_json(FEEDBACK_FILE, {"weights": w, "ts": now()})
 
 # -------------------------
-# Compétences & mutations (MVP: summarizer)
+# Compétences (skills) & mutations (sandbox)
 # -------------------------
 class SkillRegistry:
+    """
+    Registre de compétences dynamiques (chaque compétence = fonction Python pure).
+    Mutations stockées en .alsadika/variants.json et chargées en sandbox sécurisée.
+    """
     def __init__(self):
         self.variants = load_json(VARIANTS_FILE, {})
         self.active: Dict[str, Callable] = {}
         self._bootstrap_defaults()
 
     def _bootstrap_defaults(self):
+        # Compétence par défaut: summarizer v0 (baseline)
         def summarizer_v0(text: str, max_chars: int = 480) -> str:
             t = re.sub(r"\s+", " ", text.strip())
             if len(t) <= max_chars: return t
@@ -204,12 +212,16 @@ class SkillRegistry:
             tail = t[- int(max_chars * 0.25):].lstrip()
             return f"{head} … {tail}"
         self.active["summarizer"] = summarizer_v0
+
+        # Charger variante active si une mutation a été adoptée
         active_src = self.variants.get("active", {}).get("summarizer")
         if active_src:
             fn = self._compile_variant("summarizer", active_src)
             if fn: self.active["summarizer"] = fn
 
+    # Sandbox très restrictive pour compiler une variante
     def _compile_variant(self, skill: str, src: str) -> Optional[Callable]:
+        # garde-fou: pas d'import, pas d'accès système, pas de double underscore
         if re.search(r"\bimport\b|\bopen\s*\(|__\w+__", src):
             return None
         loc: Dict[str, Any] = {}
@@ -227,17 +239,27 @@ class SkillRegistry:
         return fn
 
     def mutate(self, skill: str, trials: int = 5) -> Dict[str, Any]:
+        """
+        Génère des variantes sûres pour 'summarizer' :
+        - ajustements de ratio head/tail
+        - normalisation optionnelle
+        - préservation naïve de mots-clés
+        Évalue et adopte la meilleure si elle bat la baseline sur train ET validation.
+        """
         if skill != "summarizer":
             return {"ok": False, "msg": "Seule la compétence 'summarizer' est mutée dans ce MVP."}
+
         evaluator = Evaluator()
         baseline_fn = self.active["summarizer"]
         baseline_score = self._score_summarizer(baseline_fn, evaluator)
+
         best = {"src": None, "score": baseline_score}
         for _ in range(max(1, trials)):
             head_ratio = random.choice([0.55, 0.60, 0.65, 0.70])
             tail_ratio = random.choice([0.20, 0.25, 0.30])
             normalize = random.choice([True, False])
             keep_keywords = random.choice([True, False])
+
             src = self._gen_variant_source(head_ratio, tail_ratio, normalize, keep_keywords)
             fn = self._compile_variant("summarizer", src)
             if not fn:
@@ -245,12 +267,24 @@ class SkillRegistry:
             sc = self._score_summarizer(fn, evaluator)
             if sc > best["score"]:
                 best = {"src": src, "score": sc}
+
+        # Validation holdout (stabilité)
+        def val_score(fn):
+            holdout = [
+                ("Note de réunion: décisions, responsables, délais. Produire un résumé actionnable.", 300),
+                ("Extrait long: spiritualité, éthique, véracité — condenser sans trahir.", 260),
+            ]
+            s=0.0
+            for txt, mc in holdout:
+                s += evaluator.score(fn(txt, mc))
+            return s/len(holdout)
+
         adopted = False
         if best["src"]:
             cand_fn = self._compile_variant("summarizer", best["src"])
             if cand_fn:
-                base_v = self._score_summarizer(baseline_fn, evaluator)
-                cand_v = self._score_summarizer(cand_fn, evaluator)
+                base_v = val_score(baseline_fn)
+                cand_v = val_score(cand_fn)
                 if (best["score"] >= baseline_score + 0.10) and (cand_v >= base_v + 0.10):
                     self.variants.setdefault("history", []).append(
                         {"skill": "summarizer", "score": best["score"], "vscore": cand_v, "src": best["src"], "ts": now()}
@@ -259,22 +293,26 @@ class SkillRegistry:
                     save_json(VARIANTS_FILE, self.variants)
                     self.active["summarizer"] = cand_fn
                     adopted = True
+
         return {"ok": True, "baseline": baseline_score, "adopted": adopted, "new_score": best["score"]}
 
     def _score_summarizer(self, fn: Callable, evaluator: Evaluator) -> float:
         samples = [
-            ("Texte long de test sur la patience et la vérité. Nous voulons un résumé clair et bref.", 280),
-            ("Rapport technique: erreurs, logs, métriques, correctifs. Objectif: synthèse utile.", 320),
+            ("Le Prophète ﷺ a dit ... Ceci est un long texte explicatif sur la patience et la vérité. "
+             "Nous voulons un résumé clair, bref, sans trahir le sens.", 280),
+            ("Rapport technique: erreurs, logs, métriques, anomalies, correctifs. "
+             "Objectif: synthèse opérationnelle utile à l'équipe.", 320),
         ]
         s = 0.0
         for txt, mc in samples:
             out = fn(txt, mc)
             s += evaluator.score(out)
             if len(out) > mc + 50:
-                s -= 0.5
+                s -= 0.5  # pénaliser dépassement
         return s / len(samples)
 
     def _gen_variant_source(self, head_ratio: float, tail_ratio: float, normalize: bool, keep_keywords: bool) -> str:
+        # Source Python d'une fonction 'summarizer(text, max_chars)' sandbox-safe
         body = []
         body.append("def summarizer(text: str, max_chars: int = 480) -> str:")
         body.append("    t = text.strip()")
@@ -282,6 +320,7 @@ class SkillRegistry:
             body.append("    t = re.sub(r'\\s+', ' ', t)")
         body.append("    if len(t) <= max_chars: return t")
         if keep_keywords:
+            body.append("    # garder quelques mots-clés simples (naïf)")
             body.append("    kws = []")
             body.append("    for m in re.finditer(r'\\b(Allah|vérité|sécurité|objectif|erreur)\\b', t, re.I):")
             body.append("        kws.append(m.group(0))")
@@ -294,7 +333,7 @@ class SkillRegistry:
         return "\n".join(body)
 
 # -------------------------
-# Moteurs
+# Moteurs (langage / logique / action)
 # -------------------------
 class LanguageEngine:
     def __init__(self, skills: SkillRegistry):
@@ -308,17 +347,19 @@ class LanguageEngine:
         return textwrap.dedent(f"""\
         Objectif: {objective}
         — Étape 1: clarifier le résultat attendu
-        — Étape 2: lister contraintes/risques
+        — Étape 2: lister contraintes/risques (halal, sécurité, données)
         — Étape 3: test minimal local
-        — Étape 4: itération contrôlée""")
+        — Étape 4: itération contrôlée (pas de dispersion)""")
 
 class LogicEngine:
     def check_consistency(self, prompt: str, answer: str) -> Tuple[bool, str]:
+        # Vérifications simples: non-contradiction triviale, pas de promesse d'omniscience
         if re.search(r"\binédit absolu\b", answer, re.I):
             answer = re.sub(r"\binédit absolu\b", "originalité probable (sans garantie d'inédit absolu)", answer, flags=re.I)
         return True, answer
 
 class ActionEngine:
+    # Stubs sûrs: pas d'accès hors dossier autorisé; pas d'exécution.
     WORKDIR = ROOT / "workspace"
     def __init__(self):
         self.WORKDIR.mkdir(exist_ok=True)
@@ -351,9 +392,10 @@ class Orchestrator:
     lang: LanguageEngine
     logic: LogicEngine
     act: ActionEngine
-    mode: str = "public"
+    mode: str = "public"  # "public" ou "private"
 
     def handle(self, prompt: str) -> str:
+        # simple rate-limit local: 30 requêtes / 60s
         import time
         state = load_json(ROOT/"ratelimit.json", {"win":0,"count":0})
         now_s = int(time.time())
@@ -370,7 +412,7 @@ class Orchestrator:
 
         intent = classify_intent(prompt)
         if intent == "summarize":
-            text = re.sub(r"^(.*?:\s*)", "", prompt, count=1)
+            text = re.sub(r"^(.*?:\s*)", "", prompt, count=1)  # retirer éventuel préfixe
             draft = self.lang.summarize(text, max_chars=self._max_chars())
         elif intent == "define":
             m = re.search(r"(définis|definition|c'est quoi|expliquer)\s+(.+)", prompt, re.I)
@@ -379,6 +421,7 @@ class Orchestrator:
         elif intent == "plan":
             draft = self.lang.plan(prompt)
         else:
+            # Réponse directe minimaliste, local-first
             draft = textwrap.shorten(prompt.strip(), width=self._max_chars(), placeholder=" …")
 
         ok2, draft2 = self.logic.check_consistency(prompt, draft)
@@ -388,38 +431,145 @@ class Orchestrator:
         if self.mode == "public":
             out = draft2.strip()
         else:
+            # empreinte d'intégrité du fichier courant (tamper-evidence)
             try:
                 src = Path(__file__).read_bytes()
                 fingerprint = hashlib.sha256(src).hexdigest()[:16]
             except Exception:
                 fingerprint = "unknown"
             trace = [
-                f"[{APP}] mode=private", f"- Contrainte: {self.memory.get('contrainte', 'local-first; concision')}",
+                f"[{APP}] mode=private intent={intent} fingerprint={fingerprint}",
+                f"- Contrainte: {self.memory.get('contrainte', 'local-first; halal; concision')}",
                 "- Verrou: vérité > satisfaction; aucune proposition gratuite."
             ]
             out = "\n".join(trace) + "\n\n" + draft2.strip()
+
         return self.verrou.truth_over_satisfaction(out)
 
     def _max_chars(self) -> int:
         return int(self.memory.get("max_chars", 520 if self.mode=="private" else 380))
 
 # -------------------------
-# CLI minimal (non utilisé par l'app, conservé pour compat)
+# CLI
 # -------------------------
+def cmd_chat(args: argparse.Namespace) -> int:
+    verrou = Verrou(strict=True)
+    mem = Memory.load()
+    mode = args.mode.lower()
+    # Sceau: si présent et non validé, forcer mode public
+    if SEAL_FILE.exists():
+        if not args.seal_phrase or not seal_check(args.seal_phrase):
+            mode = "public"
+    skills = SkillRegistry()
+    orch = Orchestrator(verrou, mem, LanguageEngine(skills), LogicEngine(), ActionEngine(), mode=mode)
+    out = orch.handle(args.prompt)
+    print(out)
+    log(f"CHAT | mode={mode} | prompt={args.prompt[:80]!r}")
+    return 0
+
+def cmd_show_memory(args: argparse.Namespace) -> int:
+    mem = Memory.load()
+    print(json.dumps(mem.data, ensure_ascii=False, indent=2))
+    return 0
+
+def cmd_approve_memory(args: argparse.Namespace) -> int:
+    mem = Memory.load()
+    mem.approve(args.key, args.value)
+    print("OK")
+    return 0
+
+def cmd_seal_init(args: argparse.Namespace) -> int:
+    seal_init(args.phrase)
+    print("Sceau initialisé.")
+    return 0
+
+def cmd_seal_check(args: argparse.Namespace) -> int:
+    print("OK" if seal_check(args.phrase) else "NON")
+    return 0
+
+def cmd_mutate(args: argparse.Namespace) -> int:
+    skills = SkillRegistry()
+    res = skills.mutate(args.skill, trials=max(1, args.trials))
+    print(json.dumps(res, ensure_ascii=False, indent=2))
+    return 0
+
+def cmd_eval_skill(args: argparse.Namespace) -> int:
+    skills = SkillRegistry()
+    evaluator = Evaluator()
+    fn = skills.active.get(args.skill)
+    if not fn:
+        print("Inconnue", file=sys.stderr)
+        return 1
+    score = skills._score_summarizer(fn, evaluator) if args.skill=="summarizer" else 0.0
+    print(json.dumps({"skill": args.skill, "score": score}, ensure_ascii=False, indent=2))
+    return 0
+
+def cmd_feedback(args: argparse.Namespace) -> int:
+    ev = Evaluator()
+    if args.label not in ("approve","reject"):
+        print("Label invalide", file=sys.stderr)
+        return 2
+    ev.learn(args.label)
+    print("OK")
+    return 0
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="alsadika", description="Al Sâdika — Noyau unique (local-first)")
     sp = p.add_subparsers(dest="cmd", metavar="<commande>")
+
     c1 = sp.add_parser("chat", help="Dialogue local (offline)")
     c1.add_argument("--prompt", required=True)
     c1.add_argument("--mode", choices=["public","private"], default="public")
-    c1.add_argument("--seal-phrase", default=None)
-    c1.set_defaults(_fn=lambda a: print(Orchestrator(Verrou(True), Memory.load(), LanguageEngine(SkillRegistry()), LogicEngine(), ActionEngine(), mode=a.mode).handle(a.prompt)))
+    c1.add_argument("--seal-phrase", default=None, help="Phrase pour déverrouiller le mode privé si scellé")
+    c1.set_defaults(_fn=cmd_chat)
+
+    c2 = sp.add_parser("show-memory", help="Afficher la mémoire approuvée")
+    c2.set_defaults(_fn=cmd_show_memory)
+
+    c3 = sp.add_parser("approve-memory", help="Ajouter/MAJ une entrée mémoire")
+    c3.add_argument("--key", required=True)
+    c3.add_argument("--value", required=True)
+    c3.set_defaults(_fn=cmd_approve_memory)
+
+    c4 = sp.add_parser("seal-init", help="Initialiser le sceau (liaison)")
+    c4.add_argument("--phrase", required=True)
+    c4.set_defaults(_fn=cmd_seal_init)
+
+    c5 = sp.add_parser("seal-check", help="Vérifier le sceau")
+    c5.add_argument("--phrase", required=True)
+    c5.set_defaults(_fn=cmd_seal_check)
+
+    c6 = sp.add_parser("mutate", help="Muter une compétence (MVP: summarizer)")
+    c6.add_argument("--skill", choices=["summarizer"], required=True)
+    c6.add_argument("--trials", type=int, default=5)
+    c6.set_defaults(_fn=cmd_mutate)
+
+    c7 = sp.add_parser("eval-skill", help="Évaluer une compétence")
+    c7.add_argument("--skill", choices=["summarizer"], required=True)
+    c7.set_defaults(_fn=cmd_eval_skill)
+
+    c8 = sp.add_parser("feedback", help="Apprendre d'un retour utilisateur (approve/reject)")
+    c8.add_argument("--label", required=True, choices=["approve","reject"])
+    c8.set_defaults(_fn=cmd_feedback)
+
     return p
 
-if __name__ == "__main__":
+def main(argv: List[str]) -> int:
     parser = build_parser()
-    args = parser.parse_args(sys.argv[1:])
-    if hasattr(args, "_fn"):
-        args._fn(args)
+    args = parser.parse_args(argv)
+    if not hasattr(args, "_fn"):
+        parser.print_help()
+        return 1
+    try:
+        return args._fn(args)
+    except KeyboardInterrupt:
+        return 130
+    except Exception as e:
+        print(f"ERREUR: {e}", file=sys.stderr)
+        log(f"ERROR | {e}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
 
 # Fin du noyau copié
