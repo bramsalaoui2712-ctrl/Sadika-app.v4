@@ -8,9 +8,11 @@ import { Switch } from "../components/ui/switch";
 import { Badge } from "../components/ui/badge";
 import { Mic, MicOff, Send, Volume2, VolumeX, Sparkles, Settings } from "lucide-react";
 import ChatMessage from "../components/ChatMessage";
+import AlSadikaSettings from "../components/AlSadikaSettings";
 import { seedMessages, quickPrompts } from "../mock/mock";
 import { useToast } from "../hooks/use-toast";
 import { Slider } from "../components/ui/slider";
+import CapacitorService from "../services/CapacitorService";
 
 const SESSION_KEY = "chat.session.id";
 const MESSAGES_KEY = "chat.messages";
