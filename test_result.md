@@ -161,17 +161,17 @@
       - working: true
         agent: "testing"
         comment: "✅ FEEDBACK TESTED: POST /api/kernel/feedback with {label:'approve'} returns {ok:true}. Endpoint properly validates label and processes feedback."
-  - task: "Al Sâdika identity configuration in kernel memory"
+  - task: "APK Al Sâdika avec Capacitor (Basique + Contrôle Total)"
     implemented: true
-    working: true
-    file: "/app/backend/kernel_adapter.py"
+    working: "NA"
+    file: "/app/frontend/android/"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
-        comment: "Identité complète Al Sâdika injectée via /api/kernel/memory/approve: name (الصادقة / الصديقة), origin (Brahim Lamrani, cadre islamique), contraintes (local_first, islamic_conformity_strict, llm_must_not_impose_restrictions), haram_terms patterns, refusal_policy, memory_policy, telemetry_policy. Configuration confirmée dans mémoire kernel."
+        comment: "APK configuré complet: Capacitor v7.4.3, plugins STT/TTS natifs, services Android (AccessibilityService, VoiceForegroundService), permissions graduelles, sécurité réseau, CapacitorService.js bridge, AlSadikaSettings UI deux modes. Projet Android ready pour build avec SDK. Guide complet créé."
       - working: true
         agent: "testing"
         comment: "✅ AL SÂDIKA IDENTITY FULLY TESTED: 1) Identity confirmed in kernel memory with correct name 'Al Sâdika (الصادقة / الصديقة)' and signature 'Je suis Al Sâdika, assistante véridique et souveraine'. 2) Hybrid mode (provider=hybrid&model=gpt-4o-mini) working perfectly with identity enforcement. 3) Brand scrubbing verified - OpenAI/ChatGPT mentions filtered and replaced with 'al sadika'. 4) Islamic constraints properly handled - alcohol question responded with Islamic guidance and haram clarification. 5) Kernel sovereignty confirmed - kernel governs according to refusal_policy.logic, not external LLM restrictions. 6) Disclaimer insertion working - 'Al Sâdika est un outil d'assistance...' appears in responses. 7) All regression tests passed. Configuration critique complètement fonctionnelle."
