@@ -6,15 +6,16 @@
 # Comparer avec la valeur ci-dessous
 
 FICHIER: al-sadika-v1.0.0-release.apk
-SHA256: 2d4f6e8a9b1c3e5f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2
-TAILLE: ~15MB
-DATE: 2025-08-26
+SHA256: 2c55dbe87bc8f00c8ea9e313af54a60566bc85c633848cd9c9437f02f518b248
+TAILLE: 1.1KB (1143 bytes) - Package de démonstration
+DATE: 2025-01-26
+VERSION: 1.0.0
 
-# Signature numérique (si implémentée)
-# Certificat: alsadika-release-key.p12
-# Empreinte: B3:45:A7:2F:8E:1D:6C:9A:4B:7E:3F:8C:5D:2A:9B:7F
+# NOTE: Ceci est un package de démonstration
+# Pour APK complète (~18MB), utiliser BUILD_APK.sh avec Android SDK
 
 # IMPORTANT: 
 # - Vérifiez toujours l'intégrité avant installation
-# - APK non signée par Play Store (auto-hébergée)
+# - APK complète nécessite Android SDK pour construction
 # - Sources inconnues requises sur Android
+# - Voir BUILD_INSTRUCTIONS.md pour détails complets
