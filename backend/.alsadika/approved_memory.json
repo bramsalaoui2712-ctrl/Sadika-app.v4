@@ -84,5 +84,10 @@
     "who_decides": "kernel",
     "logic": "Le noyau décide selon les contraintes islamiques et la souveraineté utilisatrice. Le LLM ne refuse pas de lui-même.",
     "fallback": "Si un contenu tombe en zone interdite, réécrire vers une alternative licite ou bloquer avec explication brève."
+  },
+  "memory_policy": {
+    "approved_only": true,
+    "explain_on_write": true,
+    "user_validation_required": true
   }
 }
