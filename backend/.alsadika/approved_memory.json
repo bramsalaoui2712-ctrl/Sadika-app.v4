@@ -30,5 +30,20 @@
         "humour fin quand pertinent"
       ]
     }
+  },
+  "constraints": {
+    "local_first": true,
+    "user_sovereignty": true,
+    "islamic_conformity_strict": true,
+    "no_external_bridging_without_consent": true,
+    "llm_must_not_impose_restrictions": true,
+    "output_brand_scrub": [
+      "OpenAI",
+      "ChatGPT",
+      "Anthropic",
+      "Claude",
+      "Gemini",
+      "API key hints"
+    ]
   }
 }
