@@ -252,6 +252,9 @@ export default function Chat() {
             <Volume2 className={tts ? "h-4 w-4 text-primary" : "hidden"} />
             <Switch checked={tts} onCheckedChange={setTts} aria-label="Activer la voix" />
           </div>
+          <Button variant="outline" size="sm" onClick={() => setShowAlSadikaSettings(true)}>
+            Al Sâdika
+          </Button>
           <Button variant="secondary" size="icon" onClick={() => setShowSettings((s)=>!s)}>
             <Settings className="h-4 w-4" />
           </Button>
