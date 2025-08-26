@@ -137,16 +137,7 @@ export default function Chat() {
             setMessages((m) => m.map((mm) => (mm.id === asstId ? { ...mm, content: (mm.content || "") + acc } : mm)));
           } else if (data.type === "complete") {
             es.close();
-            if (tts && "speechSynthesis" in window && !speakingRef.current) {
-              const msg = (prev => prev.find((x) => x.id === asstId)?.content)(messages);
-              const finalText = msg || document.querySelector(`[data-mid="${asstId}"]`)?.textContent || "";
-              if (finalText) {
-                speakingRef.current = true;
-                const utter = new SpeechSynthesisUtterance(finalText);
-                utter.lang = "fr-FR"; utter.rate = 1; utter.onend = () => { speakingRef.current = false; };
-                window.speechSynthesis.cancel(); window.speechSynthesis.speak(utter);
-              }
-            }
+            // TTS is now handled by the useEffect hook that watches for new assistant messages
           }
         } catch {}
       };
