@@ -158,6 +158,87 @@ export default function Chat() {
     }
   }, [API, input, tts, toast, messages, kernelMode, kernelCouncil, kernelTruth, hybridOn]);
 
+  // Voice Recognition with Capacitor
+  const toggleListening = useCallback(async () => {
+    if (listening) {
+      // Stop listening
+      setListening(false);
+      try {
+        await CapacitorService.stopSpeechRecognition();
+      } catch (error) {
+        console.warn('Error stopping speech recognition:', error);
+      }
+      return;
+    }
+
+    // Start listening
+    try {
+      setListening(true);
+      
+      if (isNative) {
+        await CapacitorService.hapticFeedback();
+      }
+
+      const result = await CapacitorService.startSpeechRecognition({
+        language: 'fr-FR',
+        onPartialResults: (partial) => {
+          setInput(partial);
+        },
+        onListeningState: (state) => {
+          if (state === 'stopped') {
+            setListening(false);
+          }
+        }
+      });
+
+      if (result && result.trim()) {
+        setInput(result.trim());
+        setListening(false);
+        
+        // Haptic feedback on success
+        if (isNative) {
+          await CapacitorService.hapticFeedback();
+        }
+      }
+    } catch (error) {
+      setListening(false);
+      console.error('Speech recognition error:', error);
+      toast({
+        title: "Erreur vocale",
+        description: error.message || "Impossible de reconnaître la voix"
+      });
+    }
+  }, [listening, isNative, toast]);
+
+  // Auto TTS with Capacitor
+  const speakResponse = useCallback(async (text) => {
+    if (!tts || !text || speakingRef.current) return;
+
+    try {
+      speakingRef.current = true;
+      await CapacitorService.speak(text, {
+        lang: 'fr-FR',
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0
+      });
+    } catch (error) {
+      console.error('TTS error:', error);
+    } finally {
+      speakingRef.current = false;
+    }
+  }, [tts]);
+
+  // Update TTS handling in the SSE response
+  useEffect(() => {
+    if (tts && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant' && lastMessage.content && !speakingRef.current) {
+        speakResponse(lastMessage.content);
+      }
+    }
+  }, [messages, tts, speakResponse]);
+
   const Header = useMemo(() => (
     <div className="sticky top-0 z-10 bg-background/80 backdrop-blur border-b">
       <div className="max-w-screen-sm mx-auto px-4 py-3 flex items-center justify-between gap-3">
