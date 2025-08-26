@@ -52,9 +52,11 @@ export default function Chat() {
   const [kernelTruth, setKernelTruth] = useState(() => (localStorage.getItem(KERNEL_TRUTH_KEY) || "1") === "1");
   const [hybridOn, setHybridOn] = useState(() => (localStorage.getItem(HYBRID_KEY) || "1") === "1");
   const [showSettings, setShowSettings] = useState(false);
+  const [showAlSadikaSettings, setShowAlSadikaSettings] = useState(false);
 
   const recognitionRef = useRef(null);
   const speakingRef = useRef(false);
+  const [isNative, setIsNative] = useState(false);
 
   // Persist
   useEffect(() => { localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages)); }, [messages]);
