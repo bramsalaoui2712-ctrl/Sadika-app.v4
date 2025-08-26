@@ -161,17 +161,17 @@
       - working: true
         agent: "testing"
         comment: "✅ FEEDBACK TESTED: POST /api/kernel/feedback with {label:'approve'} returns {ok:true}. Endpoint properly validates label and processes feedback."
-  - task: "Kernel mutation endpoint (/api/kernel/mutate)"
+  - task: "Al Sâdika identity configuration in kernel memory"
     implemented: true
-    working: true
-    file: "/app/backend/server.py"
+    working: "NA"
+    file: "/app/backend/kernel_adapter.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "✅ MUTATION TESTED: POST /api/kernel/mutate with {trials:3} returns {ok:true, result:{ok:true, baseline:2.45, adopted:false, new_score:2.45}}. Mutation logic working with proper result structure including adopted boolean."
+      - working: "NA"
+        agent: "main"
+        comment: "Identité complète Al Sâdika injectée via /api/kernel/memory/approve: name (الصادقة / الصديقة), origin (Brahim Lamrani, cadre islamique), contraintes (local_first, islamic_conformity_strict, llm_must_not_impose_restrictions), haram_terms patterns, refusal_policy, memory_policy, telemetry_policy. Configuration confirmée dans mémoire kernel."
 
 ## frontend:
   - task: "Mock-only chat UI with mic+TTS"
