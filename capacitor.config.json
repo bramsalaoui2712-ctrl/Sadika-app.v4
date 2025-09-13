@@ -1,0 +1,6 @@
+{
+  "appId": "com.sadika.app",
+  "appName": "Sadika",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
