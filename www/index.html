@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="description" content="Mon IA — Chat vocal" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>Mon IA</title>
+  </head>
+  <body>
+    <noscript>Active JavaScript pour utiliser cette app.</noscript>
+    <div id="root"></div>
+
+    <script>
+      // Register SW in production
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          const swUrl = '/service-worker.js';
+          navigator.serviceWorker.register(swUrl).catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

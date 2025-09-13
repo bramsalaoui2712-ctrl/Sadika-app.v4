@@ -1,0 +1,28 @@
+{
+  "name": "sadika-app.v4",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bramsalaoui2712-ctrl/Sadika-app.v4.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bramsalaoui2712-ctrl/Sadika-app.v4/issues"
+  },
+  "homepage": "https://github.com/bramsalaoui2712-ctrl/Sadika-app.v4#readme",
+  "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  }
+}
