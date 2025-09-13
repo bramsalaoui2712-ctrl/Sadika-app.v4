@@ -29,7 +29,7 @@ jobs:
       - name: Install deps & build web
         working-directory: frontend
         run: |
-          npm ci || npm i
+          npm ci --legacy-peer-deps || npm i --legacy-peer-deps
           npm run build
           npx cap sync android
 
