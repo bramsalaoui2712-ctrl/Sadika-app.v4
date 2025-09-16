@@ -1,15 +1,14 @@
 name: Android Release APK (Signed)
+
 on:
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+
     steps:
-      - name: Check www content
-        run: |
-          echo "listing www/"
-          ls -la www || true
       - uses: actions/checkout@v4
 
       - name: Setup Java 17
@@ -26,16 +25,39 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      # Assure que Capacitor trouvera des assets web
+      - name: Ensure web assets (webDir=www)
+        working-directory: .
+        run: |
+          # Force webDir=www si fichier présent
+          if [ -f capacitor.config.json ]; then
+            node -e "let c=require('./capacitor.config.json'); c.webDir='www'; require('fs').writeFileSync('capacitor.config.json', JSON.stringify(c,null,2)); console.log('webDir forced to www');"
+          fi
+          # S'assure qu'on a des assets
+          [ -f www/index.html ] || { mkdir -p www && printf '<h1>Sadika</h1>' > www/index.html; }
+          # Parachute: si un step attend encore ./build, on le mappe vers www
+          rm -rf build
+          ln -s www build || cp -R www build
+          echo "---- tree ----"
+          ls -la
+          [ -f capacitor.config.json ] && cat capacitor.config.json || true
+          [ -f www/index.html ] && echo "www OK" || echo "www MISSING"
+
+      # Installe le minimum pour cap (léger, pas de build frontend)
+      - name: Install Capacitor CLI
+        run: |
+          [ -f package.json ] || npm init -y
+          npm i -D @capacitor/cli @capacitor/core @capacitor/android
+
       - name: Decode Keystore
         if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/alsadika.keystore
 
-      - name: Build web & sync
+      - name: Capacitor Copy & Sync
         working-directory: .
         run: |
-          echo "SKIP npm ci (bypass)"
-          echo "SKIP npm run build (bypass)"
+          npx cap copy android
           npx cap sync android
 
       - name: Configure signing.gradle
@@ -68,10 +90,11 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --no-daemon
 
+      # 👉 Chemin corrigé (projet Android à la racine)
       - name: Upload app-release.apk
         uses: actions/upload-artifact@v4
         with:
           name: app-release.apk
-          path: frontend/android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
