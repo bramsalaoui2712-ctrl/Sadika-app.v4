@@ -65,6 +65,17 @@ jobs:
           ln -s www build 2>/dev/null || cp -R www build
           ls -la
           cat capacitor.config.json
+      - name: Ensure web assets (create www if missing)
+        working-directory: .
+        run: |
+          if [ -f capacitor.config.json ]; then
+            node -e "let c=require(\"./capacitor.config.json\"); c.webDir=\"www\"; require(\"fs\").writeFileSync(\"capacitor.config.json\", JSON.stringify(c,null,2))"
+          fi
+          mkdir -p www
+          [ -f www/index.html ] || echo '<h1>Sadika</h1>' > www/index.html
+          rm -rf build
+          ln -s www build 2>/dev/null || cp -R www build
+          echo "--- TREE ---"; ls -la ; echo "--- WWW ---"; ls -la www
 - name: Capacitor Copy & Sync
   working-directory: .
   run: |
