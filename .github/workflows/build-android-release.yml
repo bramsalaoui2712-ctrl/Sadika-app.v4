@@ -65,12 +65,30 @@ jobs:
           ln -s www build 2>/dev/null || cp -R www build
           ls -la
           cat capacitor.config.json
-      - name: Capacitor Copy & Sync
-        working-directory: .
-        run: |
-          npx cap copy android
-          npx cap sync android
+- name: Capacitor Copy & Sync
+  working-directory: .
+  run: |
+    echo "🔧 Force webDir=www & assets présents"
+    rm -f frontend/capacitor.config.* || true
+    if [ -f capacitor.config.json ]; then
+      node -e "let c=require(\"./capacitor.config.json\"); c.webDir=\"www\"; require(\"fs\").writeFileSync(\"capacitor.config.json\", JSON.stringify(c,null,2))"
+    fi
+    [ -f www/index.html ] || { mkdir -p www && printf \"<h1>Sadika</h1>\" > www/index.html; }
+    rm -rf build && ln -s www build 2>/dev/null || cp -R www build
 
+    echo "---- SHOW ROOT capacitor.config.json ----"
+    cat capacitor.config.json || true
+    echo "---- TREE ROOT ----"; ls -la
+
+    export CAPACITOR_CONFIG_PATH="$GITHUB_WORKSPACE/capacitor.config.json"
+    npx cap --version
+    npx cap doctor || true
+    npx cap copy android
+    npx cap sync android
+
+    echo "---- POST-SYNC assets/config ----"
+    ls -la android/app/src/main/assets || true
+    cat android/app/src/main/assets/capacitor.config.json || true
       - name: Configure signing.gradle
         working-directory: ./android/app
         run: |
